@@ -51,7 +51,7 @@
         // NEW: Fix Module Imports (CORS Fix for file:// and ensures CDN path)
         // Looks for: import ... from "./..." or "../..." or "..."
         // This is a common pattern inside ES modules
-        html = html.replace(/(import(?:["'][\s\S]*?["']\s+from\s+)?)(['"])(?!http|\/\/)([^'"]+)(['"])/g, (match, preImport, quote1, url, quote2) => {
+        html = html.replace(/(import\s+(?:[\s\S]*?\s+from\s+)?)(['"])(?!http|\/\/|data:)([^'"]+)(['"])/g, (match, preImport, quote1, url, quote2) => {
              const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
              return `${preImport}${quote1}${CDN_BASE}/${cleanUrl}${quote2}`;
         });
@@ -131,7 +131,7 @@
             // Copy inline content with import fix (again, for robustness)
             if (oldScript.innerHTML) {
                 let content = oldScript.innerHTML;
-                content = content.replace(/(import(?:["'][\s\S]*?["']\s+from\s+)?)(['"])(?!http|\/\/)([^'"]+)(['"])/g, (match, preImport, quote1, url, quote2) => {
+                content = content.replace(/(import\s+(?:[\s\S]*?\s+from\s+)?)(['"])(?!http|\/\/|data:)([^'"]+)(['"])/g, (match, preImport, quote1, url, quote2) => {
                      const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
                      return `${preImport}${quote1}${CDN_BASE}/${cleanUrl}${quote2}`;
                 });
