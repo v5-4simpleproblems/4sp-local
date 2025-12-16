@@ -755,7 +755,7 @@
 
         // --- Add KaTeX ---
         const katexScript = document.createElement('script');
-        katexScript.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js';
+        katexScript.src = 'https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js';
         container.appendChild(katexScript);
 
         document.body.appendChild(container);
@@ -2280,7 +2280,7 @@ Response Structure: <THOUGHT_PROCESS>...</THOUGHT_PROCESS> [Your Answer]
         if (!document.getElementById('ai-katex-styles')) {
             const katexStyles = document.createElement('link');
             katexStyles.id = 'ai-katex-styles';
-            katexStyles.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css';
+            katexStyles.href = 'https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css';
             katexStyles.rel = 'stylesheet';
             document.head.appendChild(katexStyles);
         }

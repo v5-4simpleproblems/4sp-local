@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4SP Local Client</title>
+    <style>
+        body { background-color: #040404; color: #c0c0c0; font-family: sans-serif; }
+    </style>
+</head>
+<body>
+    <div style="display:flex;justify-content:center;align-items:center;height:100vh;">
+        <p>Loading 4SP Local (v@latest)...</p>
+    </div>
+
+    <!-- Inlined Firebase Config -->
+    <script>
+        window.firebaseConfig = {
+            apiKey: "AIzaSyAZBKAckVa4IMvJGjcyndZx6Y1XD52lgro",
+            authDomain: "project-zirconium.firebaseapp.com",
+            projectId: "project-zirconium",
+            storageBucket: "project-zirconium.firebasestorage.app",
+            messagingSenderId: "1096564243475",
+            appId: "1:1096564243475:web:6d0956a70125eeea1ad3e6",
+            measurementId: "G-1D4F692C1Q"
+        };
+    </script>
+
+    <!-- Inlined Local Bootstrapper -->
+    <script>
+(function() {
+    // UPDATED VERSION to use @latest
+    const CDN_BASE_PACKAGE = '4sp-local-client';
+    const CDN_BASE_VERSION = '@latest';
+    const CDN_BASE = `https://cdn.jsdelivr.net/npm/${CDN_BASE_PACKAGE}${CDN_BASE_VERSION}`;
+    
+    // Helper: Fix relative URLs in HTML content
+    function fixRelativeUrls(html) {
+        // Fix src attributes (scripts, images)
+        html = html.replace(/(src=['"])(?!http|\/\/|data:)([^'"]+)(['"])/g, (match, prefix, url, suffix) => {
+            const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
+            return `${prefix}${CDN_BASE}/${cleanUrl}${suffix}`;
+        });
+        
+        // Fix href attributes (css, links) - EXCLUDE anchor links #
+        html = html.replace(/(href=['"])(?!http|\/\/|data:|#)([^'"]+)(['"])/g, (match, prefix, url, suffix) => {
+             const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
+             return `${prefix}${CDN_BASE}/${cleanUrl}${suffix}`;
+        });
+
+        // NEW: Fix Module Imports (CORS Fix for file:// and ensures CDN path)
+        // Looks for: import ... from "./..." or "../..." or "..."
+        // This is a common pattern inside ES modules
+        html = html.replace(/(import(?:["'][\s\S]*?["']\s+from\s+)?)(['"])(?!http|\/\/)([^'"]+)(['"])/g, (match, preImport, quote1, url, quote2) => {
+             const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
+             return `${preImport}${quote1}${CDN_BASE}/${cleanUrl}${quote2}`;
+        });
+
+        // NEW: Fix dynamic imports like import('./module.js')
+        html = html.replace(/(import\s*\(['"])(?!http|\/\/)([^'"]+)(['"]\))/g, (match, prefix, url, suffix) => {
+             const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
+             return `${prefix}${CDN_BASE}/${cleanUrl}${suffix}`;
+        });
+        
+        // NEW: Fix url() in inline styles or style tags
+        html = html.replace(/(url\(['"]?)(?!http|\/\/|data:)([^)'"]+)(['"]?\))/g, (match, prefix, url, suffix) => {
+            const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
+            return `${prefix}${CDN_BASE}/${cleanUrl}${suffix}`;
+        });
+        
+        return html;
+    }
+
+    // Sequential Script Loader & Content Processor
+    async function processHeadAndBody(doc) {
+        // 1. Process HEAD content: CSS first, then scripts
+        const headScriptsToRun = [];
+        const headNodesToAppend = []; // For non-script/non-link elements or processed links
+
+        for (const node of Array.from(doc.head.childNodes)) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+                if (node.tagName === 'LINK' && node.getAttribute('rel') === 'stylesheet') {
+                    const newLink = document.createElement('link');
+                    Array.from(node.attributes).forEach(attr => newLink.setAttribute(attr.name, attr.value));
+                    // The href would have been rewritten by fixRelativeUrls already
+                    document.head.appendChild(newLink);
+                } else if (node.tagName === 'SCRIPT') {
+                    headScriptsToRun.push(node);
+                } else {
+                    headNodesToAppend.push(node); // Append other head elements
+                }
+            }
+        }
+        
+        // Append other head elements
+        headNodesToAppend.forEach(node => document.head.appendChild(document.importNode(node, true)));
+
+        // Run head scripts sequentially
+        await runScripts(headScriptsToRun);
+
+        // 2. Process BODY content
+        // Temporarily clear body to avoid FOUC and prepare for new content
+        document.body.innerHTML = ''; 
+        document.body.className = doc.body.className; // Copy classes
+
+        // Append fetched body content
+        const tempBodyContainer = document.createElement('div');
+        tempBodyContainer.innerHTML = doc.body.innerHTML;
+        
+        // Run scripts in the body
+        await runScripts(Array.from(tempBodyContainer.querySelectorAll('script')));
+
+        // Now, append all body elements (excluding scripts which were run)
+        Array.from(tempBodyContainer.children).forEach(child => document.body.appendChild(child));
+    }
+    
+    // Executes a list of script nodes sequentially
+    async function runScripts(scripts) {
+        for (const oldScript of scripts) {
+            const newScript = document.createElement('script');
+            
+            // Copy attributes
+            Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+            
+            // Fix src if needed (should be caught by fixRelativeUrls, but for robustness)
+            if (newScript.src && !newScript.src.startsWith('http') && !newScript.src.startsWith('data:')) {
+                const relative = newScript.getAttribute('src').replace(/^(\.\/|\.\.\/)+/, '');
+                newScript.src = `${CDN_BASE}/${relative}`;
+            }
+
+            // Copy inline content with import fix (again, for robustness)
+            if (oldScript.innerHTML) {
+                let content = oldScript.innerHTML;
+                content = content.replace(/(import(?:["'][\s\S]*?["']\s+from\s+)?)(['"])(?!http|\/\/)([^'"]+)(['"])/g, (match, preImport, quote1, url, quote2) => {
+                     const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
+                     return `${preImport}${quote1}${CDN_BASE}/${cleanUrl}${quote2}`;
+                });
+                content = content.replace(/(import\s*\(['"])(?!http|\/\/)([^'"]+)(['"]\))/g, (match, prefix, url, suffix) => {
+                     const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
+                     return `${prefix}${CDN_BASE}/${cleanUrl}${suffix}`;
+                });
+                newScript.innerHTML = content;
+            }
+            
+            oldScript.remove(); // Remove old placeholder script (it was in the temporary container)
+            
+            // If it has src, we must wait for it to load and execute
+            if (newScript.src) {
+                await new Promise((resolve, reject) => {
+                    newScript.onload = () => {
+                        console.log(`Loaded and executed: ${newScript.src}`);
+                        resolve();
+                    };
+                    newScript.onerror = (e) => {
+                        console.error(`Failed to load script: ${newScript.src}`, e);
+                        resolve(); // Resolve to avoid blocking on failed script
+                    };
+                    document.head.appendChild(newScript); // Append to head to ensure execution
+                });
+            } else {
+                // Inline script: just append. It typically executes synchronously.
+                console.log('Executing inline script:', newScript.innerHTML.substring(0, 50) + '...');
+                document.head.appendChild(newScript); // Append to head to ensure execution context
+            }
+        }
+    }
+    
+    // Main Loader
+    async function loadPage(pagePath) {
+        try {
+            // Display loading indicator
+            document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;color:gray;">Loading...</div>';
+
+            const response = await fetch(`${CDN_BASE}/${pagePath}`);
+            if (!response.ok) throw new Error(`Failed to load ${pagePath} (HTTP ${response.status})`);
+            
+            let html = await response.text();
+            
+            // 1. Fix URLs before injection
+            html = fixRelativeUrls(html);
+            
+            // 2. Parse HTML
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // 3. Process and inject HEAD and BODY content sequentially
+            await processHeadAndBody(doc);
+            
+        } catch (e) {
+            document.body.innerHTML = `<div style="color:red; padding:20px;">
+                <h3>Error loading app</h3>
+                <p>${e.message}</p>
+                <p><small>Ensure '${CDN_BASE_PACKAGE}' is published to NPM and try again.</small></p>
+            </div>`;
+            console.error("Local bootstrapper error:", e);
+        }
+    }
+
+    // Router Logic
+    function init() {
+        const uid = localStorage.getItem('4sp_uid');
+        if (uid) {
+            // Logged In -> Dashboard
+            loadPage('logged-in/dashboard.html');
+        } else {
+            // Logged Out -> Auth (Link Device)
+            loadPage('authentication.html');
+        }
+    }
+
+    // Handle internal redirects
+    document.addEventListener('click', async (e) => {
+        const link = e.target.closest('a');
+        if (link) {
+            const href = link.getAttribute('href');
+            // Check if it's an internal relative link
+            if (href && !href.startsWith('http') && !href.startsWith('#') && !href.startsWith('mailto')) {
+                e.preventDefault();
+                // Strip leading / if present for consistent pathing
+                const cleanHref = href.startsWith('/') ? href.substring(1) : href;
+                
+                // Special handling for navigation.js (which uses full paths like /logged-in/dashboard.html)
+                // or authentication.html which might redirect to logged-in/dashboard.html
+                if (cleanHref.includes('authentication.html') || cleanHref.includes('index.html')) {
+                    loadPage('authentication.html');
+                } else if (cleanHref.includes('logged-in/dashboard.html')) {
+                    if(localStorage.getItem('4sp_uid')) {
+                        loadPage('logged-in/dashboard.html');
+                    } else {
+                        // If trying to go to dashboard without being logged in, redirect to auth
+                        loadPage('authentication.html');
+                    }
+                } else if (cleanHref.includes('logged-in/settings.html')) {
+                    if(localStorage.getItem('4sp_uid')) {
+                        loadPage('logged-in/settings.html');
+                    } else {
+                        loadPage('authentication.html');
+                    }
+                } else if (cleanHref.startsWith('legal.html')) { // Example for root-level pages
+                    loadPage('legal.html');
+                } else if (cleanHref.startsWith('documentation.html')) {
+                     loadPage('documentation.html');
+                }
+                 // Add other top-level pages here as needed
+                 // For any other relative path, try to load it directly
+                else {
+                    console.warn(`Attempting to load unknown internal path: ${cleanHref}`);
+                    loadPage(cleanHref);
+                }
+            }
+        }
+    });
+    
+    // Expose a global redirect helper for scripts loaded later (e.g., from navigation.js)
+    window.localRedirect = (path) => {
+        // Normalize path to match expected internal routing
+        const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+
+        if (cleanPath.includes('authentication.html') || cleanPath.includes('index.html')) {
+             loadPage('authentication.html');
+        } else if (cleanPath.includes('logged-in/dashboard.html')) {
+             if(localStorage.getItem('4sp_uid')) {
+                 loadPage('logged-in/dashboard.html');
+             } else {
+                 loadPage('authentication.html');
+             }
+        } else if (cleanPath.includes('logged-in/settings.html')) {
+             if(localStorage.getItem('4sp_uid')) {
+                 loadPage('logged-in/settings.html');
+             } else {
+                 loadPage('authentication.html');
+             }
+        }
+        else {
+            console.warn(`localRedirect called for unhandled path: ${cleanPath}`);
+            loadPage(cleanPath); // Default to trying to load it
+        }
+    };
+    
+    // Initial Load
+    init();
+
+})();
+    </script>
+</body>
+</html>
