@@ -131,6 +131,7 @@
             // Copy inline content with import fix (again, for robustness)
             if (oldScript.innerHTML) {
                 let content = oldScript.innerHTML;
+                content = content.replace(/window\.location\.href\s*=\s*['"]logged-in\/dashboard\.html['"]/g, `window.localRedirect('logged-in/dashboard.html')`);
                 content = content.replace(/(import\s+(?:[\s\S]*?\s+from\s+)?)(['"])(?!http|\/\/|data:)([^'"]+)(['"])/g, (match, preImport, quote1, url, quote2) => {
                      const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
                      return `${preImport}${quote1}${CDN_BASE}/${cleanUrl}${quote2}`;
