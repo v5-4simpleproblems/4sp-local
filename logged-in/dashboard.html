@@ -10,8 +10,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet">
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <script src="../injector.js"></script>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="../../injector.js"></script>
 
     <style>
         /* --- FONT & BASE STYLING --- */
@@ -265,9 +266,7 @@
             </div>
     </div>
 
-    <script type="module">
-        import { firebaseConfig } from '../firebase-config.js';
-
+    <script>
         // --- GLOBAL STATE ---
         let CURRENT_LAT = null;
         let CURRENT_LON = null;
@@ -300,9 +299,10 @@
         // --- FIREBASE INIT WAITER ---
         function waitForFirebase(callback) {
             const check = setInterval(() => {
+                // Ensure firebase object exists and an app has been initialized
                 if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0) {
                     clearInterval(check);
-                    // window.auth = firebase.auth(); // Removed
+                    // Use the globally initialized Firebase app
                     window.db = firebase.firestore();
                     callback();
                 }
@@ -474,7 +474,8 @@
 
         // --- GOOGLE WEATHER FETCH ---
         async function fetchGoogleWeather(lat, lon) {
-            const apiKey = firebaseConfig.apiKey;
+            // Assume window.firebaseConfig is available globally
+            const apiKey = window.firebaseConfig.apiKey;
             const url = `https://weather.googleapis.com/v1/currentConditions:lookup?key=${apiKey}&location.latitude=${lat}&location.longitude=${lon}`;
             
             const res = await fetch(url);
@@ -655,12 +656,22 @@
             initWeather(); // Initial load (which checks cache)
             setupWeatherRefresh(); // Start the periodic refresh
 
-            waitForFirebase(() => {
+            // Check if firebase is available before using it
+            if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0) {
+                 const db = firebase.firestore(); // Get Firestore instance
                  const uid = localStorage.getItem('4sp_uid');
                  if (!uid) {
-                     window.location.replace(redirectPath);
+                     window.localRedirect(redirectPath); // Use localRedirect
                  }
-            });
+            } else {
+                console.warn("Firebase not available for auth check in dashboard.html. Redirection might be delayed.");
+                // Fallback or delayed redirection if Firebase isn't ready
+                setTimeout(() => {
+                    if (typeof firebase === 'undefined' || !localStorage.getItem('4sp_uid')) {
+                        window.localRedirect(redirectPath);
+                    }
+                }, 2000); // Wait a bit more
+            }
         });
     </script>
 </body>

@@ -90,9 +90,7 @@
     <!-- Local Bootstrapper -->
     <script>
 (function() {
-    const CDN_BASE_PACKAGE = '4sp-local-client';
-    const CDN_BASE_VERSION = '@latest';
-    const CDN_BASE = `https://cdn.jsdelivr.net/npm/${CDN_BASE_PACKAGE}${CDN_BASE_VERSION}`;
+    const CDN_BASE = ''; // Changed from CDN URL to empty string for local loading
     
     // Inlined Module for config interception
     const FIREBASE_CONFIG_MODULE = `data:text/javascript;charset=utf-8,export const firebaseConfig = window.firebaseConfig;`;

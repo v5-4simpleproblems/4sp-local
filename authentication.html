@@ -8,8 +8,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <script src="navigation-mini.js"></script>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="../injector.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -60,84 +61,86 @@
         </div>
     </main>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { 
-            getFirestore, 
-            doc, 
-            getDoc, 
-            updateDoc, 
-            serverTimestamp 
-        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { firebaseConfig } from "./firebase-config.js";
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        const form = document.getElementById('linkForm');
-        const message = document.getElementById('message');
-        const codeInput = document.getElementById('code');
-
-        // Fingerprint Generation
-        const getFingerprint = () => {
-            let fp = localStorage.getItem('device_fingerprint');
-            if (!fp) {
-                fp = 'dev_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
-                localStorage.setItem('device_fingerprint', fp);
+    <script>
+        // Ensure firebase is available globally
+        // This script assumes firebase-app-compat.js and firebase-firestore-compat.js are loaded globally
+        // by the bootstrapper or other means before this script executes.
+        if (typeof firebase === 'undefined' || typeof firebase.firestore === 'undefined') {
+            console.error("Firebase or Firestore is not initialized. Please ensure Firebase SDKs are loaded.");
+            // Optionally, display an error message to the user
+            const msgEl = document.getElementById('message');
+            if (msgEl) {
+                msgEl.innerText = "Error: Firebase services unavailable.";
+                msgEl.className = "mt-4 text-center text-sm text-red-500";
             }
-            return fp;
-        };
+        } else {
+            const db = firebase.firestore();
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const code = codeInput.value.trim().toUpperCase();
-            if (code.length < 10) { // Basic length check
-                message.innerText = "Invalid code format.";
-                message.className = "mt-4 text-center text-sm text-red-500";
-                return;
-            }
+            const form = document.getElementById('linkForm');
+            const message = document.getElementById('message');
+            const codeInput = document.getElementById('code');
 
-            message.innerText = "Verifying...";
-            message.className = "mt-4 text-center text-sm text-yellow-500";
+            // Fingerprint Generation
+            const getFingerprint = () => {
+                let fp = localStorage.getItem('device_fingerprint');
+                if (!fp) {
+                    fp = 'dev_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+                    localStorage.setItem('device_fingerprint', fp);
+                }
+                return fp;
+            };
 
-            try {
-                const codeRef = doc(db, 'connection_codes', code);
-                const codeSnap = await getDoc(codeRef);
-
-                if (!codeSnap.exists()) {
-                    throw new Error("Invalid code.");
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const code = codeInput.value.trim().toUpperCase();
+                if (code.length < 10) { // Basic length check
+                    message.innerText = "Invalid code format.";
+                    message.className = "mt-4 text-center text-sm text-red-500";
+                    return;
                 }
 
-                const data = codeSnap.data();
-                if (data.used) {
-                    throw new Error("This code has already been used.");
+                message.innerText = "Verifying...";
+                message.className = "mt-4 text-center text-sm text-yellow-500";
+
+                try {
+                    const codeRef = db.collection('connection_codes').doc(code);
+                    const codeSnap = await codeRef.get(); // Use .get() method on docRef
+
+                    if (!codeSnap.exists) {
+                        throw new Error("Invalid code.");
+                    }
+
+                    const data = codeSnap.data();
+                    if (data.used) {
+                        throw new Error("This code has already been used.");
+                    }
+
+                    // Link successful
+                    const fingerprint = getFingerprint();
+                    await codeRef.update({ // Use .update() method on docRef
+                        used: true,
+                        usedAt: firebase.firestore.FieldValue.serverTimestamp(), // Use compat version
+                        fingerprint: fingerprint
+                    });
+
+                    // Store session
+                    localStorage.setItem('4sp_uid', data.uid);
+                    localStorage.setItem('4sp_email', data.email || 'linked-user');
+                    
+                    message.innerText = "Success! Redirecting...";
+                    message.className = "mt-4 text-center text-sm text-green-500";
+                    
+                    setTimeout(() => {
+                        window.localRedirect('logged-in/dashboard.html'); // Use localRedirect
+                    }, 1000);
+
+                } catch (err) {
+                    console.error(err);
+                    message.innerText = err.message;
+                    message.className = "mt-4 text-center text-sm text-red-500";
                 }
-
-                // Link successful
-                const fingerprint = getFingerprint();
-                await updateDoc(codeRef, {
-                    used: true,
-                    usedAt: serverTimestamp(),
-                    fingerprint: fingerprint
-                });
-
-                // Store session
-                localStorage.setItem('4sp_uid', data.uid);
-                localStorage.setItem('4sp_email', data.email || 'linked-user');
-                
-                message.innerText = "Success! Redirecting...";
-                message.className = "mt-4 text-center text-sm text-green-500";
-                
-                setTimeout(() => {
-                    window.location.href = 'logged-in/dashboard.html';
-                }, 1000);
-
-            } catch (err) {
-                console.error(err);
-                message.innerText = err.message;
-                message.className = "mt-4 text-center text-sm text-red-500";
-            }
-        });
+            });
+        }
     </script>
 </body>
 </html>
