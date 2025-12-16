@@ -1,16 +1,77 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>4SP Local Client</title>
+    
+    <!-- Fonts & Icons (Matches authentication.html) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    
+    <!-- Tailwind (Matches authentication.html) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'custom-darkest-gray': '#040404',
+                        'custom-dark-gray': '#111111',
+                        'custom-medium-gray': '#252525',
+                        'custom-light-gray': '#505050',
+                        'custom-white-gray': '#c0c0c0',
+                    }
+                }
+            }
+        }
+    </script>
+
     <style>
-        body { background-color: #040404; color: #c0c0c0; font-family: sans-serif; }
+        :root { --geist-foreground: 192, 192, 192; --geist-background: 7, 7, 7; }
+        body { 
+            font-family: 'Geist', sans-serif; 
+            background-color: #040404; /* Fallback */
+            background-color: rgb(var(--geist-background)); 
+            color: #c0c0c0; /* Fallback */
+            color: rgb(var(--geist-foreground));
+            margin: 0;
+            overflow-x: hidden;
+        }
+        h1, h2, h3 { font-weight: 400 !important; }
+        
+        /* Loading Animation */
+        .loader-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #040404;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
-<body>
-    <div style="display:flex;justify-content:center;align-items:center;height:100vh;">
-        <p>Loading 4SP Local (v@latest)...</p>
+<body class="bg-custom-darkest-gray text-custom-white-gray min-h-screen">
+
+    <div class="loader-container">
+        <div class="spinner"></div>
+        <p class="text-custom-light-gray tracking-widest text-sm">LOADING 4SP LOCAL</p>
+        <p class="text-xs text-custom-medium-gray mt-2">v@latest via NPM</p>
     </div>
 
     <!-- Inlined Firebase Config -->
@@ -29,11 +90,15 @@
     <!-- Inlined Local Bootstrapper -->
     <script>
 (function() {
-    // UPDATED VERSION to use @latest
     const CDN_BASE_PACKAGE = '4sp-local-client';
     const CDN_BASE_VERSION = '@latest';
     const CDN_BASE = `https://cdn.jsdelivr.net/npm/${CDN_BASE_PACKAGE}${CDN_BASE_VERSION}`;
     
+    // Data URI to export window.firebaseConfig as a module
+    // This allows imports like `import { firebaseConfig } from './firebase-config.js'` to work
+    // by rewriting the URL to this Data URI.
+    const FIREBASE_CONFIG_MODULE = `data:text/javascript;charset=utf-8,export const firebaseConfig = window.firebaseConfig;`;
+
     // Helper: Fix relative URLs in HTML content
     function fixRelativeUrls(html) {
         // Fix src attributes (scripts, images)
@@ -48,21 +113,26 @@
              return `${prefix}${CDN_BASE}/${cleanUrl}${suffix}`;
         });
 
-        // NEW: Fix Module Imports (CORS Fix for file:// and ensures CDN path)
-        // Looks for: import ... from "./..." or "../..." or "..."
-        // This is a common pattern inside ES modules
+        // Fix Module Imports
         html = html.replace(/(import\s+(?:[\s\S]*?\s+from\s+)?)(['"])(?!http|\/\/|data:)([^'"]+)(['"])/g, (match, preImport, quote1, url, quote2) => {
+             // INTERCEPTION: If importing firebase-config.js, use the inlined module
+             if (url.includes('firebase-config.js')) {
+                 return `${preImport}${quote1}${FIREBASE_CONFIG_MODULE}${quote2}`;
+             }
              const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
              return `${preImport}${quote1}${CDN_BASE}/${cleanUrl}${quote2}`;
         });
 
-        // NEW: Fix dynamic imports like import('./module.js')
+        // Fix dynamic imports
         html = html.replace(/(import\s*\(['"])(?!http|\/\/)([^'"]+)(['"]\))/g, (match, prefix, url, suffix) => {
+             if (url.includes('firebase-config.js')) {
+                 return `${prefix}${FIREBASE_CONFIG_MODULE}${suffix}`;
+             }
              const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
              return `${prefix}${CDN_BASE}/${cleanUrl}${suffix}`;
         });
         
-        // NEW: Fix url() in inline styles or style tags
+        // Fix url() in inline styles
         html = html.replace(/(url\(['"]?)(?!http|\/\/|data:)([^)'"]+)(['"]?\))/g, (match, prefix, url, suffix) => {
             const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
             return `${prefix}${CDN_BASE}/${cleanUrl}${suffix}`;
@@ -73,44 +143,35 @@
 
     // Sequential Script Loader & Content Processor
     async function processHeadAndBody(doc) {
-        // 1. Process HEAD content: CSS first, then scripts
+        // 1. Process HEAD content
         const headScriptsToRun = [];
-        const headNodesToAppend = []; // For non-script/non-link elements or processed links
+        const headNodesToAppend = []; 
 
         for (const node of Array.from(doc.head.childNodes)) {
             if (node.nodeType === Node.ELEMENT_NODE) {
                 if (node.tagName === 'LINK' && node.getAttribute('rel') === 'stylesheet') {
                     const newLink = document.createElement('link');
                     Array.from(node.attributes).forEach(attr => newLink.setAttribute(attr.name, attr.value));
-                    // The href would have been rewritten by fixRelativeUrls already
                     document.head.appendChild(newLink);
                 } else if (node.tagName === 'SCRIPT') {
                     headScriptsToRun.push(node);
                 } else {
-                    headNodesToAppend.push(node); // Append other head elements
+                    headNodesToAppend.push(node);
                 }
             }
         }
         
-        // Append other head elements
         headNodesToAppend.forEach(node => document.head.appendChild(document.importNode(node, true)));
-
-        // Run head scripts sequentially
         await runScripts(headScriptsToRun);
 
         // 2. Process BODY content
-        // Temporarily clear body to avoid FOUC and prepare for new content
         document.body.innerHTML = ''; 
         document.body.className = doc.body.className; // Copy classes
 
-        // Append fetched body content
         const tempBodyContainer = document.createElement('div');
         tempBodyContainer.innerHTML = doc.body.innerHTML;
         
-        // Run scripts in the body
         await runScripts(Array.from(tempBodyContainer.querySelectorAll('script')));
-
-        // Now, append all body elements (excluding scripts which were run)
         Array.from(tempBodyContainer.children).forEach(child => document.body.appendChild(child));
     }
     
@@ -122,46 +183,51 @@
             // Copy attributes
             Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
             
-            // Fix src if needed (should be caught by fixRelativeUrls, but for robustness)
+            // Fix src if needed
             if (newScript.src && !newScript.src.startsWith('http') && !newScript.src.startsWith('data:')) {
                 const relative = newScript.getAttribute('src').replace(/^(\.\/|\.\.\/)+/, '');
                 newScript.src = `${CDN_BASE}/${relative}`;
             }
 
-            // Copy inline content with import fix (again, for robustness)
+            // Copy inline content with fix
             if (oldScript.innerHTML) {
                 let content = oldScript.innerHTML;
+                
+                // REDIRECT FIX: Handle direct window.location assignments
                 content = content.replace(/window\.location\.href\s*=\s*['"]logged-in\/dashboard\.html['"]/g, `window.localRedirect('logged-in/dashboard.html')`);
+
+                // IMPORT FIX
                 content = content.replace(/(import\s+(?:[\s\S]*?\s+from\s+)?)(['"])(?!http|\/\/|data:)([^'"]+)(['"])/g, (match, preImport, quote1, url, quote2) => {
+                     // INTERCEPTION: If importing firebase-config.js, use the inlined module
+                     if (url.includes('firebase-config.js')) {
+                         return `${preImport}${quote1}${FIREBASE_CONFIG_MODULE}${quote2}`;
+                     }
                      const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
                      return `${preImport}${quote1}${CDN_BASE}/${cleanUrl}${quote2}`;
                 });
+                
+                // DYNAMIC IMPORT FIX
                 content = content.replace(/(import\s*\(['"])(?!http|\/\/)([^'"]+)(['"]\))/g, (match, prefix, url, suffix) => {
+                     if (url.includes('firebase-config.js')) {
+                         return `${prefix}${FIREBASE_CONFIG_MODULE}${suffix}`;
+                     }
                      const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
                      return `${prefix}${CDN_BASE}/${cleanUrl}${suffix}`;
                 });
+                
                 newScript.innerHTML = content;
             }
             
-            oldScript.remove(); // Remove old placeholder script (it was in the temporary container)
+            oldScript.remove(); 
             
-            // If it has src, we must wait for it to load and execute
             if (newScript.src) {
-                await new Promise((resolve, reject) => {
-                    newScript.onload = () => {
-                        console.log(`Loaded and executed: ${newScript.src}`);
-                        resolve();
-                    };
-                    newScript.onerror = (e) => {
-                        console.error(`Failed to load script: ${newScript.src}`, e);
-                        resolve(); // Resolve to avoid blocking on failed script
-                    };
-                    document.head.appendChild(newScript); // Append to head to ensure execution
+                await new Promise((resolve) => {
+                    newScript.onload = () => { console.log(`Loaded: ${newScript.src}`); resolve(); };
+                    newScript.onerror = (e) => { console.error(`Failed: ${newScript.src}`, e); resolve(); };
+                    document.head.appendChild(newScript);
                 });
             } else {
-                // Inline script: just append. It typically executes synchronously.
-                console.log('Executing inline script:', newScript.innerHTML.substring(0, 50) + '...');
-                document.head.appendChild(newScript); // Append to head to ensure execution context
+                document.head.appendChild(newScript);
             }
         }
     }
@@ -169,29 +235,29 @@
     // Main Loader
     async function loadPage(pagePath) {
         try {
-            // Display loading indicator
-            document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;color:gray;">Loading...</div>';
-
+            // Reset Loading UI
+            document.body.innerHTML = `
+                <div class="loader-container">
+                    <div class="spinner"></div>
+                    <p class="text-custom-light-gray tracking-widest text-sm">LOADING...</p>
+                </div>`;
+            
             const response = await fetch(`${CDN_BASE}/${pagePath}`);
             if (!response.ok) throw new Error(`Failed to load ${pagePath} (HTTP ${response.status})`);
             
             let html = await response.text();
-            
-            // 1. Fix URLs before injection
             html = fixRelativeUrls(html);
             
-            // 2. Parse HTML
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
-            
-            // 3. Process and inject HEAD and BODY content sequentially
             await processHeadAndBody(doc);
             
         } catch (e) {
-            document.body.innerHTML = `<div style="color:red; padding:20px;">
-                <h3>Error loading app</h3>
-                <p>${e.message}</p>
-                <p><small>Ensure '${CDN_BASE_PACKAGE}' is published to NPM and try again.</small></p>
+            document.body.innerHTML = `<div style="color:#ef4444; padding:40px; text-align:center; background:#040404; height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+                <h3 style="font-size:1.5rem; margin-bottom:1rem;">Error Loading Application</h3>
+                <p style="color:#c0c0c0; margin-bottom:1rem;">${e.message}</p>
+                <p style="font-size:0.8rem; color:#505050;">Ensure '${CDN_BASE_PACKAGE}' is published to NPM.</p>
+                <button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; background:#fff; color:#000; border:none; border-radius:8px; cursor:pointer;">Retry</button>
             </div>`;
             console.error("Local bootstrapper error:", e);
         }
@@ -201,62 +267,30 @@
     function init() {
         const uid = localStorage.getItem('4sp_uid');
         if (uid) {
-            // Logged In -> Dashboard
             loadPage('logged-in/dashboard.html');
         } else {
-            // Logged Out -> Auth (Link Device)
             loadPage('authentication.html');
         }
     }
 
-    // Handle internal redirects
+    // Internal Redirect Handler
     document.addEventListener('click', async (e) => {
         const link = e.target.closest('a');
         if (link) {
             const href = link.getAttribute('href');
-            // Check if it's an internal relative link
             if (href && !href.startsWith('http') && !href.startsWith('#') && !href.startsWith('mailto')) {
                 e.preventDefault();
-                // Strip leading / if present for consistent pathing
                 const cleanHref = href.startsWith('/') ? href.substring(1) : href;
-                
-                // Special handling for navigation.js (which uses full paths like /logged-in/dashboard.html)
-                // or authentication.html which might redirect to logged-in/dashboard.html
-                if (cleanHref.includes('authentication.html') || cleanHref.includes('index.html')) {
-                    loadPage('authentication.html');
-                } else if (cleanHref.includes('logged-in/dashboard.html')) {
-                    if(localStorage.getItem('4sp_uid')) {
-                        loadPage('logged-in/dashboard.html');
-                    } else {
-                        // If trying to go to dashboard without being logged in, redirect to auth
-                        loadPage('authentication.html');
-                    }
-                } else if (cleanHref.includes('logged-in/settings.html')) {
-                    if(localStorage.getItem('4sp_uid')) {
-                        loadPage('logged-in/settings.html');
-                    } else {
-                        loadPage('authentication.html');
-                    }
-                } else if (cleanHref.startsWith('legal.html')) { // Example for root-level pages
-                    loadPage('legal.html');
-                } else if (cleanHref.startsWith('documentation.html')) {
-                     loadPage('documentation.html');
-                }
-                 // Add other top-level pages here as needed
-                 // For any other relative path, try to load it directly
-                else {
-                    console.warn(`Attempting to load unknown internal path: ${cleanHref}`);
-                    loadPage(cleanHref);
-                }
+                window.localRedirect(cleanHref);
             }
         }
     });
     
-    // Expose a global redirect helper for scripts loaded later (e.g., from navigation.js)
+    // Global Redirect Helper
     window.localRedirect = (path) => {
-        // Normalize path to match expected internal routing
         const cleanPath = path.startsWith('/') ? path.substring(1) : path;
 
+        // Routing Rules
         if (cleanPath.includes('authentication.html') || cleanPath.includes('index.html')) {
              loadPage('authentication.html');
         } else if (cleanPath.includes('logged-in/dashboard.html')) {
@@ -273,12 +307,10 @@
              }
         }
         else {
-            console.warn(`localRedirect called for unhandled path: ${cleanPath}`);
-            loadPage(cleanPath); // Default to trying to load it
+            loadPage(cleanPath); 
         }
     };
     
-    // Initial Load
     init();
 
 })();
