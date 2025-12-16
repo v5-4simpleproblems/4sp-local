@@ -269,9 +269,78 @@ let db;
 
         try {
             await loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js");
-            await loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js");
+            // Auth SDK removed
             await loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js");
-            initializeApp(pages, FIREBASE_CONFIG);
+            
+            const app = firebase.initializeApp(firebaseConfig);
+            // auth = firebase.auth(); // Removed
+            db = firebase.firestore();
+
+            // --- LOCAL AUTH LOGIC ---
+            const localUid = localStorage.getItem('4sp_uid');
+            const localEmail = localStorage.getItem('4sp_email');
+
+            let user = null;
+            if (localUid) {
+                user = {
+                    uid: localUid,
+                    email: localEmail || 'local-user',
+                    displayName: 'Local User',
+                    providerData: []
+                };
+            }
+
+            let isPrivilegedUser = false;
+            let userData = null;
+            
+            if (user) {
+                // Check if hardcoded privileged email
+                isPrivilegedUser = user.email === PRIVILEGED_EMAIL;
+
+                try {
+                    // Fetch user data and check admin status in parallel
+                    const userDocPromise = db.collection('users').doc(user.uid).get();
+                    const adminDocPromise = db.collection('admins').doc(user.uid).get();
+
+                    const [userDoc, adminDoc] = await Promise.all([userDocPromise, adminDocPromise]);
+                    
+                    userData = userDoc.exists ? userDoc.data() : null;
+
+                    // If not already privileged via email, check if they are in the admins collection
+                    if (!isPrivilegedUser && adminDoc.exists) {
+                        isPrivilegedUser = true;
+                    }
+
+                } catch (error) {
+                    console.error("Error fetching user or admin data:", error);
+                }
+            }
+            currentUser = user;
+            currentUserData = userData;
+
+            // --- NEW: Apply Theme from Firestore ---
+            if (userData && userData.navbarTheme) {
+                window.applyTheme(userData.navbarTheme);
+                // Sync to local storage for future page loads
+                localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(userData.navbarTheme));
+            }
+            // ---------------------------------------
+
+            currentIsPrivileged = isPrivilegedUser;
+            renderNavbar(currentUser, currentUserData, allPages, currentIsPrivileged);
+
+            // Redirect if not logged in and not on authentication page
+            const isAuthPage = window.location.pathname.endsWith('authentication.html');
+            if (!user && !isAuthPage && !isRedirecting) {
+                 // Check if we are in local file or hosted
+                 // For now, redirect to authentication.html relative
+                 // But be careful about loops
+                 if (!window.location.pathname.includes('/web-files/')) {
+                      console.log("No local session. Redirecting to auth.");
+                      isRedirecting = true;
+                      window.location.href = '../authentication.html';
+                 }
+            }
         } catch (error) {
             console.error("Failed to load core Firebase SDKs:", error);
             renderNavbar(null, null, pages, false);
@@ -821,7 +890,10 @@ let db;
                 const logoutButton = document.getElementById('logout-button');
                 if (logoutButton) {
                     logoutButton.addEventListener('click', () => {
-                        auth.signOut().catch(err => console.error("Logout failed:", err));
+                        localStorage.removeItem('4sp_uid');
+                        localStorage.removeItem('4sp_email');
+                        localStorage.removeItem('device_fingerprint');
+                        window.location.href = '/authentication.html';
                     });
                 }
             }

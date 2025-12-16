@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4SP - CONNECT DEVICE</title>
+    <meta name="description" content="Generate a connection code for your local 4SP client.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="../navigation-mini.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'custom-darkest-gray': '#040404',
+                        'custom-dark-gray': '#111111',
+                        'custom-medium-gray': '#252525',
+                        'custom-light-gray': '#505050',
+                        'custom-lighter-gray': '#808080',
+                        'custom-white-gray': '#c0c0c0',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        :root { --geist-foreground: 192, 192, 192; --geist-background: 7, 7, 7; }
+        body { font-family: 'Geist', sans-serif; background-color: rgb(var(--geist-background)); color: rgb(var(--geist-foreground)); transition: all 0.3s ease; font-weight: 300; }
+        h1, h2, h3, .font-bold, .font-semibold, strong, .tracking-tighter { font-weight: 400 !important; }
+        .btn-social { transition: background-color 0.3s ease, border-color 0.3s ease; }
+        .btn-social:hover { background-color: rgba(37, 37, 37, 0.7); border-color: #383838; }
+        .message-area { min-height: 20px; }
+        .error-message { color: #f87171; font-weight: 400; }
+        .success-message { color: #4ade80; font-weight: 400; }
+        .warning-message { color: #fbbf24; font-weight: 400; }
+        .auth-split-container { max-width: 1200px; margin: 0 auto; }
+        @media (max-width: 767px) { .right-col { display: none; } .left-col { border-right: none; } }
+    </style>
+</head>
+<body class="bg-custom-darkest-gray text-custom-white-gray min-h-screen flex flex-col">
+
+    <div id="navbar-container"></div>
+    <main class="flex-grow flex items-stretch justify-center p-0">
+        <div class="auth-split-container bg-custom-darkest-gray flex flex-wrap w-full border-0 overflow-hidden p-0">
+            <div class="auth-col left-col flex-1 p-8 flex flex-col justify-center items-center bg-custom-darkest-gray min-w-[300px]">
+
+                <!-- CONNECTION CODE VIEW (Initially Hidden) -->
+                <div id="connectionContainer" class="w-full flex-col items-center" style="display: none;">
+                    <h2 class="text-3xl font-normal text-custom-white-gray mb-6 text-center w-full tracking-tighter">Your Connection Code</h2>
+                    <p class="text-custom-light-gray text-base mb-6 text-center max-w-md font-normal">
+                        Enter this code in your local 4SP client to link your account.
+                    </p>
+                    
+                    <div class="w-full max-w-md p-6 bg-custom-dark-gray border border-custom-medium-gray rounded-xl flex flex-col items-center justify-center mb-6">
+                        <div id="codeDisplay" class="text-4xl font-mono text-white tracking-widest mb-4">LOADING...</div>
+                        <button id="copyCodeBtn" class="p-2 px-4 rounded-lg bg-custom-medium-gray hover:bg-custom-light-gray transition text-sm">
+                            <i class="fas fa-copy mr-2"></i> Copy Code
+                        </button>
+                    </div>
+
+                    <div class="p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-xl max-w-md w-full">
+                        <p class="text-yellow-500 text-sm text-center">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                            <strong>ONE-TIME USE ONLY</strong><br>
+                            This code will expire immediately after use. We fingerprint the device that uses it.
+                        </p>
+                    </div>
+
+                    <button id="generateNewBtn" class="mt-6 text-custom-light-gray hover:text-white underline text-sm">Generate New Code</button>
+                    <button id="logoutBtn" class="mt-4 text-red-400 hover:text-red-300 text-sm">Logout</button>
+                </div>
+
+                <!-- LOGIN CONTAINER -->
+                <div id="loginContainer" class="w-full flex flex-col items-center">
+                    <h2 class="text-3xl font-normal text-custom-white-gray mb-6 text-center w-full tracking-tighter">Login to Connect</h2>
+                    <form id="loginForm" novalidate class="w-full max-w-md"> 
+                        <div class="mb-5">
+                            <label for="loginEmail" class="block mb-2 text-custom-light-gray text-sm font-light text-left">Email</label>
+                            <input type="email" id="loginEmail" placeholder="Enter your email" required class="w-full p-3 border border-custom-medium-gray bg-custom-dark-gray rounded-xl text-custom-white-gray transition focus:border-custom-light-gray focus:ring focus:ring-custom-light-gray/50 focus:outline-none">
+                        </div>
+                        <div class="mb-5">
+                            <label for="loginPassword" class="block mb-2 text-custom-light-gray text-sm font-light text-left">Password</label>
+                            <input type="password" id="loginPassword" placeholder="Enter your password" required class="w-full p-3 border border-custom-medium-gray bg-custom-dark-gray rounded-xl text-custom-white-gray transition focus:border-custom-light-gray focus:ring focus:ring-custom-light-gray/50 focus:outline-none">
+                        </div>
+                        <button type="submit" class="w-full p-3 text-lg rounded-xl font-normal ring-1 ring-white/20 text-white bg-white/5 hover:bg-white/10 transition">LOGIN & GENERATE CODE</button>
+                    </form>
+                    <div id="loginMessage" class="message-area w-full max-w-md mt-4 text-center text-sm"></div>
+                    <div class="w-full max-w-md mt-4 text-center"> 
+                        <a id="forgotPasswordLink" class="text-white hover:text-gray-300 font-normal text-sm cursor-pointer">Forgot Password?</a> 
+                    </div>
+                </div>
+
+                <!-- RESET PASSWORD CONTAINER -->
+                <div id="resetPasswordContainer" class="w-full flex-col items-center" style="display: none;">
+                    <h2 class="text-3xl font-normal text-custom-white-gray mb-6 text-center w-full tracking-tighter">Reset Your Password</h2>
+                    <form id="resetPasswordForm" novalidate class="w-full max-w-md">
+                        <div class="mb-5">
+                            <label for="resetEmail" class="block mb-2 text-custom-light-gray text-sm font-light text-left">Email</label>
+                            <input type="email" id="resetEmail" placeholder="Enter your registered email" required class="w-full p-3 border border-custom-medium-gray bg-custom-dark-gray rounded-xl text-custom-white-gray transition focus:border-custom-light-gray focus:ring focus:ring-custom-light-gray/50 focus:outline-none">
+                        </div>
+                        <button type="submit" class="w-full p-3 text-lg rounded-xl font-normal ring-1 ring-white/20 text-white bg-white/5 hover:bg-white/10 transition">SEND RESET LINK</button>
+                    </form>
+                    <div id="resetMessage" class="message-area w-full max-w-md mt-4 text-center text-sm"></div>
+                    <div class="w-full max-w-md mt-6 text-center"> 
+                        <a id="backToLoginLink" class="text-white hover:text-gray-300 font-normal text-sm cursor-pointer">&larr; Back to Login</a> 
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="auth-col right-col flex-1 p-8 flex flex-col justify-center items-center bg-custom-darkest-gray">
+                <div class="w-full flex flex-col items-center justify-center">
+                    <h2 class="text-3xl font-normal text-custom-white-gray mb-6 text-center w-full tracking-tighter">Social Login</h2>
+                    <p class="text-lg text-custom-light-gray mb-8 text-center max-w-md font-normal">
+                        Use a provider to quickly access your connection code.
+                    </p>
+                    
+                    <button id="googleAuthBtn" class="btn-social flex items-center justify-center w-full max-w-md p-3 bg-custom-dark-gray text-custom-white-gray border border-custom-medium-gray rounded-xl font-normal cursor-pointer mb-3">
+                        <img src="../images/google-icon.png" alt="Google Logo" class="w-6 h-6 mr-3">
+                        Continue with Google
+                    </button>
+                    <button id="microsoftAuthBtn" class="btn-social flex items-center justify-center w-full max-w-md p-3 bg-custom-dark-gray text-custom-white-gray border border-custom-medium-gray rounded-xl font-normal cursor-pointer mb-3">
+                        <img src="../images/microsoft.png" alt="Microsoft Logo" class="w-6 h-6 mr-3">
+                        Continue with Microsoft
+                    </button>
+                    <button id="githubAuthBtn" class="btn-social flex items-center justify-center w-full max-w-md p-3 bg-custom-dark-gray text-custom-white-gray border border-custom-medium-gray rounded-xl font-normal cursor-pointer mb-3">
+                        <img src="../images/github-mark-white.png" alt="GitHub Logo" class="w-6 h-6 mr-3">
+                        Continue with GitHub
+                    </button>
+                    <button id="twitterAuthBtn" class="btn-social flex items-center justify-center w-full max-w-md p-3 bg-custom-dark-gray text-custom-white-gray border border-custom-medium-gray rounded-xl font-normal cursor-pointer mb-3">
+                        <img src="../images/x.png" alt="X Logo" class="w-6 h-6 mr-3">
+                        Continue with X
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+<script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import {
+            getAuth,
+            onAuthStateChanged,
+            signInWithEmailAndPassword,
+            sendPasswordResetEmail,
+            fetchSignInMethodsForEmail,
+            signOut,
+            GoogleAuthProvider,
+            GithubAuthProvider,
+            TwitterAuthProvider,
+            OAuthProvider,
+            signInWithPopup
+        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            setDoc, 
+            serverTimestamp 
+        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        
+        import { firebaseConfig } from "./firebase-config.js"; 
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        const containers = {
+            login: document.getElementById('loginContainer'),
+            reset: document.getElementById('resetPasswordContainer'),
+            connection: document.getElementById('connectionContainer')
+        };
+        const messageDivs = {
+            login: document.getElementById('loginMessage'),
+            reset: document.getElementById('resetMessage')
+        };
+
+        const showView = (viewName) => {
+            Object.values(messageDivs).forEach(div => div.innerHTML = '');
+            for (const key in containers) {
+                containers[key].style.display = (key === viewName) ? 'flex' : 'none';
+            }
+        };
+
+        const showMessage = (element, text, type = 'error') => {
+            element.innerHTML = text;
+            element.className = `message-area w-full max-w-md mt-4 text-center text-sm ${type}-message`;
+        };
+
+        const generateCode = async (user) => {
+            showView('connection');
+            const codeDisplay = document.getElementById('codeDisplay');
+            codeDisplay.innerText = "GENERATING...";
+            
+            // Generate 12-char code
+            const code = Array(12).fill(0).map(() => Math.random().toString(36).charAt(2)).join('').toUpperCase();
+            
+            try {
+                await setDoc(doc(db, 'connection_codes', code), {
+                    uid: user.uid,
+                    email: user.email,
+                    createdAt: serverTimestamp(),
+                    used: false
+                });
+                
+                codeDisplay.innerText = code;
+                
+                document.getElementById('copyCodeBtn').onclick = () => {
+                    navigator.clipboard.writeText(code);
+                    alert("Code copied!");
+                };
+            } catch (err) {
+                console.error(err);
+                codeDisplay.innerText = "ERROR";
+                alert("Failed to generate code. Check console.");
+            }
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                generateCode(user);
+            } else {
+                showView('login');
+            }
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
+        document.getElementById('generateNewBtn').addEventListener('click', () => {
+             if (auth.currentUser) generateCode(auth.currentUser);
+        });
+
+        // Login Logic
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                showMessage(messageDivs.login, error.message);
+            }
+        });
+
+        // Social Logic
+        const handleSocial = async (provider) => {
+            try { await signInWithPopup(auth, provider); }
+            catch (error) { showMessage(messageDivs.login, error.message); }
+        };
+        document.getElementById('googleAuthBtn').addEventListener('click', () => handleSocial(new GoogleAuthProvider()));
+        document.getElementById('microsoftAuthBtn').addEventListener('click', () => handleSocial(new OAuthProvider('microsoft.com')));
+        document.getElementById('githubAuthBtn').addEventListener('click', () => handleSocial(new GithubAuthProvider()));
+        document.getElementById('twitterAuthBtn').addEventListener('click', () => handleSocial(new TwitterAuthProvider()));
+
+        // Nav
+        document.getElementById('forgotPasswordLink').addEventListener('click', () => showView('reset'));
+        document.getElementById('backToLoginLink').addEventListener('click', () => showView('login'));
+</script>
+</body>
+</html>

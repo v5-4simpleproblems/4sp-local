@@ -302,7 +302,7 @@
             const check = setInterval(() => {
                 if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0) {
                     clearInterval(check);
-                    window.auth = firebase.auth();
+                    // window.auth = firebase.auth(); // Removed
                     window.db = firebase.firestore();
                     callback();
                 }
@@ -656,13 +656,10 @@
             setupWeatherRefresh(); // Start the periodic refresh
 
             waitForFirebase(() => {
-                 if (firebase.auth) {
-                    firebase.auth().onAuthStateChanged((user) => {
-                        if (!user && !window._LOCAL_MODE) {
-                            window.location.replace(redirectPath);
-                        }
-                    });
-                }
+                 const uid = localStorage.getItem('4sp_uid');
+                 if (!uid) {
+                     window.location.replace(redirectPath);
+                 }
             });
         });
     </script>
