@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>4SP Local Client</title>
     
-    <!-- Fonts & Icons (Matches authentication.html) -->
+    <!-- Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     
-    <!-- Tailwind (Matches authentication.html) -->
+    <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -34,9 +34,9 @@
         :root { --geist-foreground: 192, 192, 192; --geist-background: 7, 7, 7; }
         body { 
             font-family: 'Geist', sans-serif; 
-            background-color: #040404; /* Fallback */
+            background-color: #040404;
             background-color: rgb(var(--geist-background)); 
-            color: #c0c0c0; /* Fallback */
+            color: #c0c0c0;
             color: rgb(var(--geist-foreground));
             margin: 0;
             overflow-x: hidden;
@@ -87,95 +87,38 @@
         };
     </script>
 
-    <!-- Inlined Local Bootstrapper -->
+    <!-- Local Bootstrapper -->
     <script>
 (function() {
     const CDN_BASE_PACKAGE = '4sp-local-client';
     const CDN_BASE_VERSION = '@latest';
     const CDN_BASE = `https://cdn.jsdelivr.net/npm/${CDN_BASE_PACKAGE}${CDN_BASE_VERSION}`;
     
-    // Data URI to export window.firebaseConfig as a module
-    // This allows imports like `import { firebaseConfig } from './firebase-config.js'` to work
-    // by rewriting the URL to this Data URI.
+    // Inlined Module for config interception
     const FIREBASE_CONFIG_MODULE = `data:text/javascript;charset=utf-8,export const firebaseConfig = window.firebaseConfig;`;
 
-    // Helper: Fix relative URLs in HTML content
-    function fixRelativeUrls(html) {
-        // Fix src attributes (scripts, images)
-        html = html.replace(/(src=['"])(?!http|\/\/|data:)([^'"]+)(['"])/g, (match, prefix, url, suffix) => {
-            const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
-            return `${prefix}${CDN_BASE}/${cleanUrl}${suffix}`;
-        });
-        
-        // Fix href attributes (css, links) - EXCLUDE anchor links #
-        html = html.replace(/(href=['"])(?!http|\/\/|data:|#)([^'"]+)(['"])/g, (match, prefix, url, suffix) => {
-             const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
-             return `${prefix}${CDN_BASE}/${cleanUrl}${suffix}`;
-        });
-
-        // Fix Module Imports
+    // Process HTML content to intercept specific modules and fix critical attributes
+    function processHtml(html) {
+        // Intercept Module Imports for firebase-config.js
         html = html.replace(/(import\s+(?:[\s\S]*?\s+from\s+)?)(['"])(?!http|\/\/|data:)([^'"]+)(['"])/g, (match, preImport, quote1, url, quote2) => {
-             // INTERCEPTION: If importing firebase-config.js, use the inlined module
              if (url.includes('firebase-config.js')) {
                  return `${preImport}${quote1}${FIREBASE_CONFIG_MODULE}${quote2}`;
              }
-             const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
-             return `${preImport}${quote1}${CDN_BASE}/${cleanUrl}${quote2}`;
+             return match; // Leave others to be resolved by <base> or browser
         });
 
-        // Fix dynamic imports
+        // Intercept Dynamic Imports
         html = html.replace(/(import\s*\(['"])(?!http|\/\/)([^'"]+)(['"]\))/g, (match, prefix, url, suffix) => {
              if (url.includes('firebase-config.js')) {
                  return `${prefix}${FIREBASE_CONFIG_MODULE}${suffix}`;
              }
-             const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
-             return `${prefix}${CDN_BASE}/${cleanUrl}${suffix}`;
-        });
-        
-        // Fix url() in inline styles
-        html = html.replace(/(url\(['"]?)(?!http|\/\/|data:)([^)'"]+)(['"]?\))/g, (match, prefix, url, suffix) => {
-            const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
-            return `${prefix}${CDN_BASE}/${cleanUrl}${suffix}`;
+             return match;
         });
         
         return html;
     }
 
-    // Sequential Script Loader & Content Processor
-    async function processHeadAndBody(doc) {
-        // 1. Process HEAD content
-        const headScriptsToRun = [];
-        const headNodesToAppend = []; 
-
-        for (const node of Array.from(doc.head.childNodes)) {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-                if (node.tagName === 'LINK' && node.getAttribute('rel') === 'stylesheet') {
-                    const newLink = document.createElement('link');
-                    Array.from(node.attributes).forEach(attr => newLink.setAttribute(attr.name, attr.value));
-                    document.head.appendChild(newLink);
-                } else if (node.tagName === 'SCRIPT') {
-                    headScriptsToRun.push(node);
-                } else {
-                    headNodesToAppend.push(node);
-                }
-            }
-        }
-        
-        headNodesToAppend.forEach(node => document.head.appendChild(document.importNode(node, true)));
-        await runScripts(headScriptsToRun);
-
-        // 2. Process BODY content
-        document.body.innerHTML = ''; 
-        document.body.className = doc.body.className; // Copy classes
-
-        const tempBodyContainer = document.createElement('div');
-        tempBodyContainer.innerHTML = doc.body.innerHTML;
-        
-        await runScripts(Array.from(tempBodyContainer.querySelectorAll('script')));
-        Array.from(tempBodyContainer.children).forEach(child => document.body.appendChild(child));
-    }
-    
-    // Executes a list of script nodes sequentially
+    // Run scripts sequentially
     async function runScripts(scripts) {
         for (const oldScript of scripts) {
             const newScript = document.createElement('script');
@@ -183,36 +126,26 @@
             // Copy attributes
             Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
             
-            // Fix src if needed
-            if (newScript.src && !newScript.src.startsWith('http') && !newScript.src.startsWith('data:')) {
-                const relative = newScript.getAttribute('src').replace(/^(\.\/|\.\.\/)+/, '');
-                newScript.src = `${CDN_BASE}/${relative}`;
-            }
-
-            // Copy inline content with fix
+            // Handle inline scripts
             if (oldScript.innerHTML) {
                 let content = oldScript.innerHTML;
                 
-                // REDIRECT FIX: Handle direct window.location assignments
+                // Redirect Fix
                 content = content.replace(/window\.location\.href\s*=\s*['"]logged-in\/dashboard\.html['"]/g, `window.localRedirect('logged-in/dashboard.html')`);
 
-                // IMPORT FIX
+                // Import Fix
                 content = content.replace(/(import\s+(?:[\s\S]*?\s+from\s+)?)(['"])(?!http|\/\/|data:)([^'"]+)(['"])/g, (match, preImport, quote1, url, quote2) => {
-                     // INTERCEPTION: If importing firebase-config.js, use the inlined module
                      if (url.includes('firebase-config.js')) {
                          return `${preImport}${quote1}${FIREBASE_CONFIG_MODULE}${quote2}`;
                      }
-                     const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
-                     return `${preImport}${quote1}${CDN_BASE}/${cleanUrl}${quote2}`;
+                     return match;
                 });
                 
-                // DYNAMIC IMPORT FIX
                 content = content.replace(/(import\s*\(['"])(?!http|\/\/)([^'"]+)(['"]\))/g, (match, prefix, url, suffix) => {
                      if (url.includes('firebase-config.js')) {
                          return `${prefix}${FIREBASE_CONFIG_MODULE}${suffix}`;
                      }
-                     const cleanUrl = url.replace(/^(\.\/|\.\.\/)+/, '');
-                     return `${prefix}${CDN_BASE}/${cleanUrl}${suffix}`;
+                     return match;
                 });
                 
                 newScript.innerHTML = content;
@@ -231,23 +164,75 @@
             }
         }
     }
+
+    async function processHeadAndBody(doc) {
+        // 1. Process HEAD
+        const headScriptsToRun = [];
+        const headNodesToAppend = []; 
+
+        for (const node of Array.from(doc.head.childNodes)) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+                if (node.tagName === 'LINK' && node.getAttribute('rel') === 'stylesheet') {
+                    // Links are automatically resolved by <base>, just move them
+                    const newLink = document.createElement('link');
+                    Array.from(node.attributes).forEach(attr => newLink.setAttribute(attr.name, attr.value));
+                    document.head.appendChild(newLink);
+                } else if (node.tagName === 'SCRIPT') {
+                    headScriptsToRun.push(node);
+                } else {
+                    headNodesToAppend.push(node);
+                }
+            }
+        }
+        
+        headNodesToAppend.forEach(node => document.head.appendChild(document.importNode(node, true)));
+        await runScripts(headScriptsToRun);
+
+        // 2. Process BODY
+        document.body.innerHTML = ''; 
+        document.body.className = doc.body.className;
+
+        const tempBodyContainer = document.createElement('div');
+        tempBodyContainer.innerHTML = doc.body.innerHTML;
+        
+        await runScripts(Array.from(tempBodyContainer.querySelectorAll('script')));
+        Array.from(tempBodyContainer.children).forEach(child => document.body.appendChild(child));
+    }
     
-    // Main Loader
     async function loadPage(pagePath) {
         try {
-            // Reset Loading UI
+            // UI Reset
             document.body.innerHTML = `
                 <div class="loader-container">
                     <div class="spinner"></div>
                     <p class="text-custom-light-gray tracking-widest text-sm">LOADING...</p>
                 </div>`;
             
+            // 1. Calculate and Set <base> URL
+            // This ensures all relative assets (scripts, images, css) resolve to the CDN directory
+            const parts = pagePath.split('/');
+            parts.pop(); // remove filename
+            const dir = parts.join('/');
+            const baseUrl = dir ? `${CDN_BASE}/${dir}/` : `${CDN_BASE}/`;
+            
+            let baseTag = document.querySelector('base');
+            if (!baseTag) {
+                baseTag = document.createElement('base');
+                document.head.prepend(baseTag);
+            }
+            baseTag.href = baseUrl;
+            console.log(`Set Base URL: ${baseUrl}`);
+
+            // 2. Fetch Content
             const response = await fetch(`${CDN_BASE}/${pagePath}`);
             if (!response.ok) throw new Error(`Failed to load ${pagePath} (HTTP ${response.status})`);
             
             let html = await response.text();
-            html = fixRelativeUrls(html);
             
+            // 3. Process (Intercept special modules)
+            html = processHtml(html);
+            
+            // 4. Parse and Inject
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             await processHeadAndBody(doc);
@@ -256,14 +241,12 @@
             document.body.innerHTML = `<div style="color:#ef4444; padding:40px; text-align:center; background:#040404; height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center;">
                 <h3 style="font-size:1.5rem; margin-bottom:1rem;">Error Loading Application</h3>
                 <p style="color:#c0c0c0; margin-bottom:1rem;">${e.message}</p>
-                <p style="font-size:0.8rem; color:#505050;">Ensure '${CDN_BASE_PACKAGE}' is published to NPM.</p>
                 <button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; background:#fff; color:#000; border:none; border-radius:8px; cursor:pointer;">Retry</button>
             </div>`;
             console.error("Local bootstrapper error:", e);
         }
     }
 
-    // Router Logic
     function init() {
         const uid = localStorage.getItem('4sp_uid');
         if (uid) {
@@ -273,24 +256,34 @@
         }
     }
 
-    // Internal Redirect Handler
+    // Intercept Clicks for Navigation
     document.addEventListener('click', async (e) => {
         const link = e.target.closest('a');
         if (link) {
             const href = link.getAttribute('href');
+            // Intercept internal links only
             if (href && !href.startsWith('http') && !href.startsWith('#') && !href.startsWith('mailto')) {
                 e.preventDefault();
-                const cleanHref = href.startsWith('/') ? href.substring(1) : href;
-                window.localRedirect(cleanHref);
+                
+                // link.href property is absolute (resolved by browser using <base>)
+                // We check if it points to our CDN_BASE
+                if (link.href.startsWith(CDN_BASE)) {
+                    // Extract relative path from CDN_BASE
+                    const relativePath = link.href.substring(CDN_BASE.length);
+                    const cleanPath = relativePath.startsWith('/') ? relativePath.substring(1) : relativePath;
+                    window.localRedirect(cleanPath);
+                } else {
+                    // Fallback for weird edge cases or just log
+                    console.warn('Navigation blocked: Link outside of app scope', link.href);
+                }
             }
         }
     });
     
-    // Global Redirect Helper
     window.localRedirect = (path) => {
         const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-
-        // Routing Rules
+        
+        // Auth Logic
         if (cleanPath.includes('authentication.html') || cleanPath.includes('index.html')) {
              loadPage('authentication.html');
         } else if (cleanPath.includes('logged-in/dashboard.html')) {
