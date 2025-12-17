@@ -238,18 +238,21 @@
                 let navScript = await navRes.text();
 
                 // 2. Patch Navigation.js
-                // Keep App and Firestore SDKs, but REMOVE Auth SDK load
-                navScript = navScript.replace(/await loadScript\(".*?firebase-auth-compat\.js"\);/g, '// Auth SDK Skipped');
                 
-                // Patch the imports if any (though navigation.js seems to use loadScript mostly)
-                // If there are ES modules imports of auth, remove them
+                // BLOCK AUTH SDK
+                navScript = navScript.replace(/await loadScript\(".*?firebase-auth-compat\.js"\);/g, '// Auth SDK Skipped');
                 navScript = navScript.replace(/import\s+.*?firebase-auth.*?/g, '');
+
+                // BLOCK REDIRECTS (The Fix)
+                // We find the specific redirect line and comment it out
+                navScript = navScript.replace(/window\.location\.href\s*=\s*targetUrl;/g, 'console.log("Redirect blocked by local client:", targetUrl);');
+                // Also neutralize the specific check if possible to be safe
+                navScript = navScript.replace(/if\s*\(authCheckCompleted\s*&&\s*!user\s*&&\s*!isRedirecting\)/g, 'if (false)');
 
                 // Fix Images (Absolute paths to CDN)
                 navScript = navScript.replace(/["']\/images\//g, `"${CDN_BASE}images/`);
                 
                 // Inject Mock Auth shim right before initializeApp is called
-                // We assume firebase global is available after app-compat loads
                 navScript = navScript.replace('initializeApp(pages, FIREBASE_CONFIG);', `
                     // SHIM AUTH
                     firebase.auth = () => window.mockAuth;
@@ -261,7 +264,6 @@
                 const baseTag = `<base href="${CDN_BASE}logged-in/">`;
                 
                 // User & Env setup script
-                // We define mockAuth here
                 const setupScript = `
                     <script>
                         window._LOCAL_MODE = true;
@@ -281,7 +283,10 @@
                         window.mockAuth = {
                             currentUser: window.currentUser,
                             onAuthStateChanged: (cb) => {
-                                if (window.currentUser) cb(window.currentUser);
+                                // Always fire immediately with the user
+                                if (window.currentUser) {
+                                    setTimeout(() => cb(window.currentUser), 0);
+                                }
                                 return () => {};
                             },
                             signOut: () => window.parent.postMessage({type: 'LOGOUT_REQUEST'}, '*')
@@ -326,6 +331,100 @@
                 lockMessage.textContent = "Failed to load dashboard resources.";
                 lockMessage.className = 'message-area w-full max-w-md mt-4 text-center text-sm error-message';
             }
+        }
+
+        // --- PARENT MESSAGING HANDLER ---
+        window.addEventListener('message', async (event) => {
+            const msg = event.data;
+            if (!msg || !currentUserDocId) return;
+
+            if (msg.type === 'LOGOUT_REQUEST') {
+                if (confirm("Unlink this code from the client?")) {
+                    try {
+                        await updateDoc(doc(db, "users", currentUserDocId), { code: null });
+                        localStorage.removeItem('4sp_code'); // CLEAR STORAGE
+                        location.reload(); // RESET
+                    } catch(e) {
+                        alert("Error unlinking: " + e.message);
+                    }
+                }
+            }
+            
+            if (msg.type === 'UPDATE_USER') {
+                try {
+                    await updateDoc(doc(db, "users", currentUserDocId), msg.data);
+                } catch(e) { console.error(e); }
+            }
+
+            if (msg.type === 'NAVIGATE') {
+                // ... existing nav logic ...
+                // For simplicity in this fix, we just reload as dashboard is the main view
+                // Proper nav handling requires more complex fetch/inject logic reuse
+                // which is already in loadDashboard but tied to dashboard.html
+                // We'll leave the reload behavior from setupScript for now.
+            }
+        });
+
+        // --- MAIN LOGIC ---
+
+        async function attemptConnection(code) {
+             if (code.length < 10) {
+                lockMessage.textContent = "Invalid code format.";
+                lockMessage.className = 'message-area w-full max-w-md mt-4 text-center text-sm error-message';
+                return;
+            }
+
+            lockMessage.textContent = "Verifying...";
+            lockMessage.className = 'message-area w-full max-w-md mt-4 text-center text-sm warning-message';
+            
+            try {
+                const q = query(collection(db, "users"), where("code", "==", code));
+                const snap = await getDocs(q);
+
+                if (snap.empty) {
+                    lockMessage.textContent = "Code not found. Please generate a new one.";
+                    lockMessage.className = 'message-area w-full max-w-md mt-4 text-center text-sm error-message';
+                    localStorage.removeItem('4sp_code'); // Clear invalid code
+                    return;
+                }
+
+                const userDoc = snap.docs[0];
+                const userData = userDoc.data();
+                const now = new Date();
+
+                // Concurrency Check
+                if (userData.lastActive) {
+                    const lastActive = userData.lastActive.toDate();
+                    const diffMins = (now - lastActive) / 1000 / 60;
+                    
+                    if (diffMins < 2) {
+                        lockMessage.textContent = "Error: Someone else is using this code.";
+                        lockMessage.className = 'message-area w-full max-w-md mt-4 text-center text-sm error-message';
+                        return;
+                    }
+                }
+
+                // Success
+                localStorage.setItem('4sp_code', code); // SAVE CODE
+                await startSession(userDoc.id, userData);
+
+            } catch (e) {
+                console.error(e);
+                lockMessage.textContent = "Connection failed.";
+                lockMessage.className = 'message-area w-full max-w-md mt-4 text-center text-sm error-message';
+            }
+        }
+
+        connectBtn.addEventListener('click', async () => {
+            const code = codeInput.value.trim();
+            await attemptConnection(code);
+        });
+
+        // Auto-login
+        const storedCode = localStorage.getItem('4sp_code');
+        if (storedCode) {
+            codeInput.value = storedCode;
+            attemptConnection(storedCode);
         }
 
         // --- PARENT MESSAGING HANDLER ---
