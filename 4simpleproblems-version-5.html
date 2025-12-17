@@ -4,32 +4,96 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>4SP Client v5</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'custom-darkest-gray': '#040404', 
+                        'custom-dark-gray': '#111111',    
+                        'custom-medium-gray': '#252525', 
+                        'custom-light-gray': '#505050',  
+                        'custom-lighter-gray': '#808080', 
+                        'custom-white-gray': '#c0c0c0',  
+                    }
+                }
+            }
+        }
+    </script>
+    
     <style>
-        body { background-color: #040404; color: #c0c0c0; font-family: sans-serif; height: 100vh; margin: 0; display: flex; flex-direction: column; overflow: hidden; }
-        .center-box { margin: auto; padding: 2rem; background: #0d0d0d; border: 1px solid #333; border-radius: 1rem; max-width: 400px; width: 90%; text-align: center; }
-        .input-style { width: 100%; padding: 0.75rem; margin-bottom: 1rem; background: #111; border: 1px solid #333; color: white; border-radius: 0.5rem; text-align: center; letter-spacing: 2px; font-family: monospace; font-size: 1.2rem; }
-        .btn-style { background: #4f46e5; color: white; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: bold; cursor: pointer; border: none; width: 100%; transition: background 0.2s; }
-        .btn-style:hover { background: #4338ca; }
-        .error-msg { color: #ef4444; margin-top: 1rem; font-size: 0.875rem; }
-        #app-frame { width: 100%; height: 100%; border: none; display: none; flex-grow: 1; }
+        :root {
+            --geist-foreground: 192, 192, 192; 
+            --geist-background: 7, 7, 7;       
+        }
+
+        body {
+            font-family: 'Geist', sans-serif;
+            background-color: rgb(var(--geist-background));
+            color: rgb(var(--geist-foreground));
+            transition: all 0.3s ease;
+            font-weight: 300; 
+            overflow: hidden; /* Prevent scroll on body when app is loaded */
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1, h2, h3, .font-bold, .font-semibold, strong, .tracking-tighter {
+            font-weight: 400 !important;
+        }
+        
+        #app-frame {
+            width: 100vw;
+            height: 100vh;
+            border: none;
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 50;
+        }
+
         .hidden { display: none !important; }
-        #loading-text { color: #888; margin-top: 1rem; }
+        
+        .message-area { min-height: 20px; }
+        .error-message { color: #f87171; }
+        .success-message { color: #4ade80; }
     </style>
 </head>
-<body>
+<body class="bg-custom-darkest-gray text-custom-white-gray min-h-screen flex items-center justify-center p-0">
 
-    <!-- LOCK SCREEN -->
-    <div id="lock-screen" class="center-box">
-        <h1 class="text-2xl font-bold text-white mb-4">4SP Client v5</h1>
-        <p class="text-gray-400 mb-6 text-sm">Enter your 4SP access code to connect.</p>
+    <!-- LOCK SCREEN CONTAINER -->
+    <div id="lock-screen" class="w-full max-w-md p-8 flex flex-col justify-center items-center bg-custom-darkest-gray">
         
-        <input type="text" id="codeInput" class="input-style" placeholder="4SP-XXXXXXXXXX" value="4SP-">
-        <button id="connectBtn" class="btn-style">Connect</button>
+        <h2 class="text-3xl font-normal text-custom-white-gray mb-6 text-center w-full tracking-tighter">4SP Client v5</h2>
         
-        <p id="lockMessage" class="error-msg"></p>
-        <p id="loading-text" class="hidden">Connecting to 4SP Network...</p>
+        <div class="w-full flex flex-col items-center">
+            <p class="text-lg text-custom-light-gray mb-8 text-center max-w-md font-normal">
+                Enter your access code to connect to the secure network.
+            </p>
+
+            <div class="w-full max-w-md"> 
+                <div class="mb-5">
+                    <label for="codeInput" class="block mb-2 text-custom-light-gray text-sm font-light text-left">Access Code</label>
+                    <input type="text" id="codeInput" placeholder="4SP-XXXXXXXXXX" value="4SP-" class="w-full p-3 border border-custom-medium-gray bg-custom-dark-gray rounded-xl text-custom-white-gray transition focus:border-custom-light-gray focus:ring focus:ring-custom-light-gray/50 focus:outline-none font-mono text-center tracking-widest text-lg">
+                </div>
+                
+                <button id="connectBtn" class="w-full p-3 text-lg rounded-xl font-normal ring-1 ring-white/20 text-white bg-white/5 hover:bg-white/10 transition">
+                    CONNECT
+                </button>
+            </div>
+            
+            <div id="lockMessage" class="message-area w-full max-w-md mt-4 text-center text-sm"></div>
+            <p id="loading-text" class="text-custom-light-gray mt-4 hidden animate-pulse">Connecting to 4SP Network...</p>
+        </div>
+
     </div>
 
     <!-- APP CONTAINER -->
@@ -83,12 +147,15 @@
         // --- FUNCTIONS ---
 
         function resetSession(msg) {
-            lockScreen.style.display = 'block'; // Was center-box, using block for div
+            lockScreen.style.display = 'flex'; 
             appFrame.style.display = 'none';
             loadingText.classList.add('hidden');
             connectBtn.classList.remove('hidden');
-            codeInput.classList.remove('hidden');
+            connectBtn.disabled = false;
+            codeInput.parentElement.classList.remove('hidden'); // Show input container
+            
             lockMessage.textContent = msg || '';
+            lockMessage.className = 'message-area w-full max-w-md mt-4 text-center text-sm error-message';
             
             if (unsubscribeUser) { unsubscribeUser(); unsubscribeUser = null; }
             if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
@@ -103,7 +170,7 @@
             // UI Transition
             lockMessage.textContent = "";
             connectBtn.classList.add('hidden');
-            codeInput.classList.add('hidden');
+            codeInput.parentElement.classList.add('hidden'); // Hide input container
             loadingText.classList.remove('hidden');
 
             // 1. Setup Heartbeat & Concurrency Check
@@ -150,7 +217,7 @@
 
             // 3. Load App
             setTimeout(() => {
-                lockScreen.classList.add('hidden'); // Actually hide it now
+                lockScreen.style.display = 'none'; 
                 appFrame.style.display = 'block';
                 loadDashboard(userData);
             }, 1000);
@@ -172,19 +239,16 @@
 
                 // 2. Patch Navigation.js
                 // Remove Firebase Imports
-                navScript = navScript.replace(/import\s+.*?from\s+["']https:\/\/www.gstatic.com\/firebasejs\/.*?["'];/g, '');
+                navScript = navScript.replace(/import\s+.*?from\s+["']https:\/\/www\.gstatic\.com\/firebasejs\/.*?["'];/g, '');
                 navScript = navScript.replace(/import\s+.*?from\s+["']\.\/firebase-config.js["'];/g, '');
 
                 // Fix Images (Absolute paths to CDN)
-                // Replacing src="/images/..." and internal references to /images/
                 navScript = navScript.replace(/["']\/images\//g, `"${CDN_BASE}images/`);
                 
-                // Inject Mock Firebase Logic at the top of navigation.js
-                // NOTE: We used backticks for string literals inside the template literal below.
-                // We MUST escape the closing script tag to prevent HTML parser breakage.
+                // Inject Mock Firebase Logic
                 const mockAuthLogic = `
                     // --- MOCK FIREBASE FOR LOCAL CLIENT ---
-                    const firebaseConfig = {}; // Dummy
+                    const firebaseConfig = {}; 
                     const app = {}; 
                     const auth = { 
                         currentUser: window.currentUser, 
@@ -215,7 +279,6 @@
                     const browserLocalPersistence = {};
                     const setLogLevel = () => {};
 
-                    // CRITICAL: Always fire with our local user, never null
                     const onAuthStateChanged = (authInstance, callback) => {
                         if (window.currentUser) {
                             callback(window.currentUser);
@@ -223,7 +286,6 @@
                         return () => {};
                     };
 
-                    // Stub other potential exports
                     const signInWithPopup = async () => {};
                     const GoogleAuthProvider = class {};
                     const GithubAuthProvider = class {};
@@ -240,22 +302,19 @@
                     };
                 `;
 
-                // Prepend mocks to the script
                 navScript = mockAuthLogic + '\n' + navScript;
 
                 // 3. Patch Dashboard HTML
-                // Base Tag for relative assets
                 const baseTag = `<base href="${CDN_BASE}logged-in/">`;
                 
                 // User & Env setup script
-                // We escape the closing script tag here: <\/script>
+                // CRITICAL: Escape closing script tag
                 const setupScript = `
                     <script>
                         window._LOCAL_MODE = true;
                         window._USER_DOC_ID = "${currentUserDocId}";
                         window._USER_DATA = ${JSON.stringify(userData)};
                         
-                        // Define Current User
                         window.currentUser = {
                             uid: "${currentUserDocId}",
                             displayName: "${userData.displayName || 'User'}",
@@ -265,48 +324,40 @@
                             emailVerified: true
                         };
                         
-                        // Intercept Links
                         document.addEventListener('click', e => {
                             const link = e.target.closest('a');
                             if (link && link.href) {
-                                // If internal link, prevent default and notify parent
                                 const url = new URL(link.href);
                                 if (url.hostname === window.location.hostname || url.hostname === 'cdn.jsdelivr.net' || url.href.includes('v5-4simpleproblems')) {
                                     e.preventDefault();
                                     console.log("Navigating to:", link.href);
-                                    window.parent.location.reload(); // Simple refresh to "reset" if they navigate away
+                                    window.parent.location.reload(); 
                                 }
                             }
                         });
                     <\/script>
                 `;
 
-                // Replace the external navigation.js reference with our inline patched version
-                const navScriptTag = `<script type="module">${navScript}</script>`;
+                const navScriptTag = `<script type="module">${navScript}<\/script>`;
                 html = html.replace(/<script\s+src=["']\.\.\/navigation\.js["']><\/script>/, navScriptTag);
                 
-                // Fallback if the path is different in dashboard.html
                 if (!html.includes(navScriptTag)) {
-                    // Try generic injection if replacement failed
                      html = html.replace('</body>', `${navScriptTag}</body>`);
                 }
 
-                // Inject Setup & Base
                 if (html.includes('<head>')) {
                     html = html.replace('<head>', `<head>${baseTag}${setupScript}`);
                 } else {
                     html = `${baseTag}${setupScript}${html}`;
                 }
 
-                // Write to Frame
                 const doc = appFrame.contentWindow.document;
-                doc.open();
-                doc.write(html);
-                doc.close();
+                doc.open(); doc.write(html); doc.close();
 
             } catch (e) {
                 console.error("Load error:", e);
                 lockMessage.textContent = "Failed to load dashboard resources.";
+                lockMessage.className = 'message-area w-full max-w-md mt-4 text-center text-sm error-message';
             }
         }
 
@@ -322,7 +373,6 @@
             }
             
             if (msg.type === 'UPDATE_USER') {
-                // Update Firestore
                 try {
                     await updateDoc(doc(db, "users", currentUserDocId), msg.data);
                 } catch(e) { console.error(e); }
@@ -330,7 +380,6 @@
 
             if (msg.type === 'NAVIGATE') {
                 const targetUrl = msg.url;
-                
                 try {
                     const response = await fetch(targetUrl);
                     let html = await response.text();
@@ -383,10 +432,12 @@
             const code = codeInput.value.trim();
             if (code.length < 10) {
                 lockMessage.textContent = "Invalid code format.";
+                lockMessage.className = 'message-area w-full max-w-md mt-4 text-center text-sm error-message';
                 return;
             }
 
             lockMessage.textContent = "Verifying...";
+            lockMessage.className = 'message-area w-full max-w-md mt-4 text-center text-sm warning-message';
             
             try {
                 const q = query(collection(db, "users"), where("code", "==", code));
@@ -394,6 +445,7 @@
 
                 if (snap.empty) {
                     lockMessage.textContent = "Code not found. Please generate a new one.";
+                    lockMessage.className = 'message-area w-full max-w-md mt-4 text-center text-sm error-message';
                     return;
                 }
 
@@ -407,8 +459,8 @@
                     const diffMins = (now - lastActive) / 1000 / 60;
                     
                     if (diffMins < 2) {
-                        // Another client is active
                         lockMessage.textContent = "Error: Someone else is using this code. Create your own account at 4sp-organization.github.io.";
+                        lockMessage.className = 'message-area w-full max-w-md mt-4 text-center text-sm error-message';
                         return;
                     }
                 }
@@ -419,10 +471,10 @@
             } catch (e) {
                 console.error(e);
                 lockMessage.textContent = "Connection failed.";
+                lockMessage.className = 'message-area w-full max-w-md mt-4 text-center text-sm error-message';
             }
         });
 
-        // Auto-fill persistence check
         const storedCode = localStorage.getItem('4sp_code');
         if (storedCode) {
             codeInput.value = storedCode;
