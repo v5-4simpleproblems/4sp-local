@@ -14,8 +14,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="../navigation.js"></script>
-    <script src="../injector.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/4sp-local-client@latest/navigation.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/4sp-local-client@latest/injector.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/moment@latest/moment.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@latest/dist/chartjs-adapter-moment.min.js"></script>
@@ -179,7 +179,7 @@
         }
     </style>
 </head>
-<body class="min-h-screen pb-10">
+<body data-page-id="analytics" class="min-h-screen pb-10">
 
     <div id="page-content" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         
@@ -443,11 +443,13 @@
             orderBy,
             limit
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { firebaseConfig } from "../firebase-config.js";
+        import { firebaseConfig } from "https://cdn.jsdelivr.net/npm/4sp-local-client@latest/firebase-config.js";
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+
+        const CDN_BASE_URL = 'https://cdn.jsdelivr.net/npm/4sp-local-client@latest/';
 
         let allUsers = [];
         let allSessions = [];
@@ -459,10 +461,10 @@
         let userToBan = null;
 
         const providerImages = {
-            'google.com': '../images/google-icon.png',
-            'microsoft.com': '../images/microsoft.png',
-            'github.com': '../images/github-mark-white.png',
-            'twitter.com': '../images/x.png',
+            'google.com': 'https://cdn.jsdelivr.net/npm/4sp-local-client@latest/images/google-icon.png',
+            'microsoft.com': 'https://cdn.jsdelivr.net/npm/4sp-local-client@latest/images/microsoft.png',
+            'github.com': 'https://cdn.jsdelivr.net/npm/4sp-local-client@latest/images/github-mark-white.png',
+            'twitter.com': 'https://cdn.jsdelivr.net/npm/4sp-local-client@latest/images/x.png',
             'password': 'fa-solid fa-envelope'
         };
 
@@ -477,10 +479,10 @@
                         loadTrafficData();
                         runIntegrityCheck();
                     } else {
-                        window.location.href = '../logged-in/dashboard.html';
+                        window.location.href = CDN_BASE_URL + 'logged-in/dashboard.html';
                     }
                 } else {
-                    window.location.href = '../index.html';
+                    window.location.href = CDN_BASE_URL + 'index.html';
                 }
             });
             

@@ -11,9 +11,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="../navigation.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/4sp-local-client@latest/navigation.js"></script>
 
-    <script src="../injector.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/4sp-local-client@latest/injector.js"></script>
     <style>
         /* BUBBLY ANIMATIONS */
         @keyframes popIn {
@@ -326,7 +326,7 @@
   gtag('config', 'G-1D4F692C1Q');
 </script>
 </head>
-<body class="pt-16">
+<body data-page-id="dailyphoto" class="pt-16">
 
     <div id="custom-tooltip"></div>
 
@@ -454,13 +454,15 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, query, where, getDocs, serverTimestamp, orderBy, deleteDoc, onSnapshot, writeBatch, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { firebaseConfig } from "../firebase-config.js";
+        import { firebaseConfig } from "https://cdn.jsdelivr.net/npm/4sp-local-client@latest/firebase-config.js";
         
         if (!firebaseConfig || !firebaseConfig.apiKey) throw new Error("Missing Firebase Config.");
         
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        
+        const CDN_BASE_URL = 'https://cdn.jsdelivr.net/npm/4sp-local-client@latest/';
         
         let CURRENT_FRIENDS = [];
         let CURRENT_USERNAME = 'User'; 

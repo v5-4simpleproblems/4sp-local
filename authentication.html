@@ -42,105 +42,274 @@
                 Enter the 12-character connection code from your account dashboard.
             </p>
 
-            <form id="linkForm" class="flex flex-col gap-4">
-                <div>
-                    <input type="text" id="code" placeholder="ENTER-CODE-HERE" maxlength="12" 
-                           class="w-full p-4 text-center text-2xl font-mono tracking-widest bg-black border border-custom-medium-gray rounded-xl focus:border-white focus:outline-none uppercase text-white placeholder-custom-medium-gray">
-                </div>
-                <button type="submit" class="w-full p-4 bg-white text-black font-medium rounded-xl hover:bg-gray-200 transition">
-                    CONNECT DEVICE
+            <div id="authSection" class="flex flex-col gap-4">
+                <button id="generateCodeBtn" class="w-full p-4 bg-white text-black font-medium rounded-xl hover:bg-gray-200 transition">
+                    GENERATE CODE
                 </button>
-            </form>
-            <div id="message" class="mt-4 text-center text-sm min-h-[20px]"></div>
+                <div id="message" class="mt-4 text-center text-sm min-h-[20px]"></div>
+                
+                <div id="generatedCodeDisplay" class="hidden mt-6 bg-custom-medium-gray p-4 rounded-xl text-center">
+                    <p class="text-custom-light-gray text-sm mb-2">Your one-time unlock code:</p>
+                    <div class="relative">
+                        <input type="text" id="displayCode" readonly class="w-full p-3 text-center text-2xl font-mono tracking-widest bg-black border border-custom-medium-gray rounded-xl uppercase text-white select-all">
+                        <button id="copyCodeBtn" class="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-custom-dark-gray rounded-lg hover:bg-custom-light-gray transition">
+                            <i class="fa-regular fa-copy text-custom-white-gray"></i>
+                        </button>
+                    </div>
+                    <p id="codeExpiry" class="text-xs text-custom-light-gray mt-2"></p>
+                    <p class="text-sm text-red-400 mt-4 font-bold">
+                        IMPORTANT: Copy this code now! It will only be shown once.
+                    </p>
+                </div>
+                
+                <!-- Placeholder for existing codes and revoke functionality -->
+                <div id="manageCodesSection" class="mt-8 pt-4 border-t border-custom-medium-gray hidden">
+                    <h3 class="text-xl text-center mb-4 text-white">Your Active Codes</h3>
+                    <div id="activeCodesList" class="flex flex-col gap-3">
+                        <!-- Codes will be listed here -->
+                        <p class="text-custom-light-gray text-center">No active codes found.</p>
+                    </div>
+                </div>
+            </div>
             
             <div class="mt-8 text-center">
-                <a href="https://v5-4simpleproblems.github.io/web-files/connection.html" target="_blank" class="text-custom-light-gray hover:text-white underline text-sm">
-                    Get a code
+                <a href="#" id="authHelpLink" class="text-custom-light-gray hover:text-white underline text-sm">
+                    How does this work?
                 </a>
             </div>
         </div>
     </main>
 
-    <script>
-        // Ensure firebase is available globally
-        // This script assumes firebase-app-compat.js and firebase-firestore-compat.js are loaded globally
-        // by the bootstrapper or other means before this script executes.
-        if (typeof firebase === 'undefined' || typeof firebase.firestore === 'undefined') {
-            console.error("Firebase or Firestore is not initialized. Please ensure Firebase SDKs are loaded.");
-            // Optionally, display an error message to the user
-            const msgEl = document.getElementById('message');
-            if (msgEl) {
-                msgEl.innerText = "Error: Firebase services unavailable.";
-                msgEl.className = "mt-4 text-center text-sm text-red-500";
+    <script type="module">
+        // Ensure Firebase App and Firebase Auth are loaded before this script executes.
+        // For example, in your index.html or a common bootstrapper:
+        // <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-app.js"></script>
+        // <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-auth.js"></script>
+        // <script src="/firebase-config.js"></script>
+        // <script>firebase.initializeApp(firebaseConfig);</script>
+        // Make sure a user signs in via Google/other providers before reaching this page
+        // (or implement sign-in flow directly on this page if not handled elsewhere).
+        
+        // This script will assume `firebase.auth()` and `firebase.firestore()` are available.
+        // If using modular SDK, imports would look like:
+        // import { getAuth, onAuthStateChanged } from 'firebase/auth';
+        // import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const generateCodeBtn = document.getElementById('generateCodeBtn');
+            const messageElement = document.getElementById('message');
+            const generatedCodeDisplay = document.getElementById('generatedCodeDisplay');
+            const displayCodeInput = document.getElementById('displayCode');
+            const copyCodeBtn = document.getElementById('copyCodeBtn');
+            const codeExpiryElement = document.getElementById('codeExpiry');
+            const manageCodesSection = document.getElementById('manageCodesSection');
+            const activeCodesList = document.getElementById('activeCodesList');
+
+            // TODO: Update these endpoints to your deployed Cloud Functions URLs
+            const CLOUD_FUNCTIONS_BASE_URL = 'https://your-cloud-functions-url.cloudfunctions.net';
+            const GENERATE_CODE_ENDPOINT = `${CLOUD_FUNCTIONS_BASE_URL}/generateCode`; 
+            const REVOKE_CODE_ENDPOINT = `${CLOUD_FUNCTIONS_BASE_URL}/revokeCode`; 
+
+            // Function to get Firebase ID token, if authenticated
+            async function getAuthToken() {
+                try {
+                    // Check if Firebase Auth is initialized and a user is signed in
+                    if (typeof firebase !== 'undefined' && firebase.auth() && firebase.auth().currentUser) {
+                        return await firebase.auth().currentUser.getIdToken();
+                    } else {
+                        // console.warn('Firebase Auth not initialized or user not signed in.');
+                        return null;
+                    }
+                } catch (error) {
+                    console.error('Error getting auth token:', error);
+                    return null;
+                }
             }
-        } else {
-            const db = firebase.firestore();
 
-            const form = document.getElementById('linkForm');
-            const message = document.getElementById('message');
-            const codeInput = document.getElementById('code');
-
-            // Fingerprint Generation
-            const getFingerprint = () => {
-                let fp = localStorage.getItem('device_fingerprint');
-                if (!fp) {
-                    fp = 'dev_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
-                    localStorage.setItem('device_fingerprint', fp);
-                }
-                return fp;
-            };
-
-            form.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const code = codeInput.value.trim().toUpperCase();
-                if (code.length < 10) { // Basic length check
-                    message.innerText = "Invalid code format.";
-                    message.className = "mt-4 text-center text-sm text-red-500";
-                    return;
-                }
-
-                message.innerText = "Verifying...";
-                message.className = "mt-4 text-center text-sm text-yellow-500";
+            generateCodeBtn.addEventListener('click', async () => {
+                messageElement.textContent = 'Generating code...';
+                messageElement.className = 'mt-4 text-center text-sm text-yellow-500';
+                generatedCodeDisplay.classList.add('hidden');
 
                 try {
-                    const codeRef = db.collection('connection_codes').doc(code);
-                    const codeSnap = await codeRef.get(); // Use .get() method on docRef
-
-                    if (!codeSnap.exists) {
-                        throw new Error("Invalid code.");
+                    const idToken = await getAuthToken();
+                    if (!idToken) {
+                        messageElement.textContent = 'Please sign in to generate a code.';
+                        messageElement.className = 'mt-4 text-center text-sm text-red-500';
+                        return;
                     }
 
-                    const data = codeSnap.data();
-                    if (data.used) {
-                        throw new Error("This code has already been used.");
-                    }
-
-                    // Link successful
-                    const fingerprint = getFingerprint();
-                    await codeRef.update({ // Use .update() method on docRef
-                        used: true,
-                        usedAt: firebase.firestore.FieldValue.serverTimestamp(), // Use compat version
-                        fingerprint: fingerprint
+                    const response = await fetch(GENERATE_CODE_ENDPOINT, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${idToken}` // Include auth token for function authorization
+                        },
+                        body: JSON.stringify({})
                     });
 
-                    // Store session
-                    localStorage.setItem('4sp_uid', data.uid);
-                    localStorage.setItem('4sp_email', data.email || 'linked-user');
-                    
-                    message.innerText = "Success! Redirecting...";
-                    message.className = "mt-4 text-center text-sm text-green-500";
-                    
-                    setTimeout(() => {
-                        window.localRedirect('logged-in/dashboard.html'); // Use localRedirect
-                    }, 1000);
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Failed to generate code.');
+                    }
 
-                } catch (err) {
-                    console.error(err);
-                    message.innerText = err.message;
-                    message.className = "mt-4 text-center text-sm text-red-500";
+                    const data = await response.json();
+                    if (data.success) {
+                        displayCodeInput.value = data.code;
+                        codeExpiryElement.textContent = `Expires: ${new Date(data.expiresAt).toLocaleString()}`;
+                        messageElement.textContent = '';
+                        generatedCodeDisplay.classList.remove('hidden');
+
+                        displayCodeInput.select();
+                        displayCodeInput.setSelectionRange(0, 99999);
+
+                        try {
+                            await navigator.clipboard.writeText(data.code);
+                            messageElement.textContent = 'Code generated and copied to clipboard!';
+                            messageElement.className = 'mt-4 text-center text-sm text-green-500';
+                        } catch (err) {
+                            console.warn('Failed to copy to clipboard automatically:', err);
+                            messageElement.textContent = 'Code generated. Please copy it manually.';
+                            messageElement.className = 'mt-4 text-center text-sm text-blue-500';
+                        }
+                        // Refresh the list of active codes
+                        await fetchActiveCodes();
+                    } else {
+                        throw new Error(data.message || 'Unknown error during code generation.');
+                    }
+
+                } catch (error) {
+                    console.error('Error generating code:', error);
+                    messageElement.textContent = `Error: ${error.message}`;
+                    messageElement.className = 'mt-4 text-center text-sm text-red-500';
                 }
             });
-        }
+
+            copyCodeBtn.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(displayCodeInput.value);
+                    messageElement.textContent = 'Code copied to clipboard!';
+                    messageElement.className = 'mt-4 text-center text-sm text-green-500';
+                } catch (err) {
+                    console.error('Failed to copy code:', err);
+                    messageElement.textContent = 'Failed to copy code. Please select and copy manually.';
+                    messageElement.className = 'mt-4 text-center text-sm text-red-500';
+                }
+            });
+
+            // Function to fetch and display active codes for the current user
+            async function fetchActiveCodes() {
+                activeCodesList.innerHTML = '<p class="text-custom-light-gray text-center">Loading codes...</p>';
+                manageCodesSection.classList.remove('hidden');
+
+                try {
+                    const idToken = await getAuthToken();
+                    if (!idToken || !firebase.auth().currentUser) {
+                        activeCodesList.innerHTML = '<p class="text-custom-light-gray text-center">Please sign in to view your codes.</p>';
+                        return;
+                    }
+
+                    // Direct Firestore query example (requires security rule: allow read: if request.auth.uid == resource.data.userId; )
+                    // This rule would need to be added to `other-required/firestore.rules` for this to work
+                    const codesSnapshot = await firebase.firestore().collection('unlockCodes')
+                                            .where('userId', '==', firebase.auth().currentUser.uid)
+                                            .where('used', '==', false)
+                                            .where('revoked', '==', false)
+                                            .get();
+                    
+                    if (codesSnapshot.empty) {
+                        activeCodesList.innerHTML = '<p class="text-custom-light-gray text-center">No active codes found.</p>';
+                        return;
+                    }
+
+                    activeCodesList.innerHTML = ''; // Clear loading message
+
+                    codesSnapshot.forEach(doc => {
+                        const codeData = doc.data();
+                        const codeHash = doc.id; // The document ID is the code hash
+                        const expiration = codeData.expiresAt ? new Date(codeData.expiresAt.toDate()).toLocaleString() : 'Never';
+                        const deviceStatus = codeData.deviceFingerprint ? 'Linked' : 'Not linked';
+
+                        const codeItem = document.createElement('div');
+                        codeItem.className = 'bg-custom-darkest-gray p-3 rounded-lg flex items-center justify-between';
+                        codeItem.innerHTML = `
+                            <div>
+                                <p class="font-mono text-white text-sm break-all">${codeHash.substring(0, 8)}...</p> <!-- Display partial hash -->
+                                <p class="text-xs text-custom-light-gray">Expires: ${expiration} | Device: ${deviceStatus}</p>
+                            </div>
+                            <button class="revoke-btn bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1 rounded-md transition" data-code-hash="${codeHash}">Revoke</button>
+                        `;
+                        activeCodesList.appendChild(codeItem);
+                    });
+
+                    // Add event listeners for revoke buttons
+                    document.querySelectorAll('.revoke-btn').forEach(button => {
+                        button.addEventListener('click', async (event) => {
+                            const hashToRevoke = event.target.dataset.codeHash;
+                            messageElement.textContent = `Revoking code ${hashToRevoke.substring(0, 8)}...`;
+                            messageElement.className = 'mt-4 text-center text-sm text-yellow-500';
+
+                            try {
+                                const idToken = await getAuthToken();
+                                if (!idToken) {
+                                    messageElement.textContent = 'Please sign in to revoke codes.';
+                                    messageElement.className = 'mt-4 text-center text-sm text-red-500';
+                                    return;
+                                }
+
+                                const response = await fetch(REVOKE_CODE_ENDPOINT, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${idToken}`
+                                    },
+                                    body: JSON.stringify({ codeHash: hashToRevoke })
+                                });
+
+                                if (!response.ok) {
+                                    const errorData = await response.json();
+                                    throw new Error(errorData.message || 'Failed to revoke code.');
+                                }
+
+                                const data = await response.json();
+                                if (data.success) {
+                                    messageElement.textContent = `Code ${hashToRevoke.substring(0, 8)} revoked successfully!`;
+                                    messageElement.className = 'mt-4 text-center text-sm text-green-500';
+                                    await fetchActiveCodes(); // Refresh list
+                                } else {
+                                    throw new Error(data.message || 'Unknown error during revocation.');
+                                }
+
+                            } catch (error) {
+                                console.error('Error revoking code:', error);
+                                messageElement.textContent = `Error: ${error.message}`;
+                                messageElement.className = 'mt-4 text-center text-sm text-red-500';
+                            }
+                        });
+                    });
+
+                } catch (error) {
+                    console.error('Error fetching active codes:', error);
+                    activeCodesList.innerHTML = `<p class="text-red-400 text-center">Error loading codes: ${error.message}. Ensure Firestore rules permit access.</p>`;
+                }
+            }
+
+            // Initial load of active codes
+            // We need to wait for Firebase Auth to be ready.
+            if (typeof firebase !== 'undefined' && firebase.auth()) {
+                firebase.auth().onAuthStateChanged(user => {
+                    if (user) {
+                        fetchActiveCodes();
+                    } else {
+                        activeCodesList.innerHTML = '<p class="text-custom-light-gray text-center">Sign in to manage your codes.</p>';
+                        manageCodesSection.classList.remove('hidden');
+                    }
+                });
+            } else {
+                activeCodesList.innerHTML = '<p class="text-red-400 text-center">Firebase Auth not available. Cannot manage codes.</p>';
+                manageCodesSection.classList.remove('hidden');
+            }
+        });
     </script>
 </body>
 </html>

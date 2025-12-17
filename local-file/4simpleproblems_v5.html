@@ -74,44 +74,19 @@
         <p class="text-xs text-custom-medium-gray mt-2">v@latest via NPM</p>
     </div>
 
-    <!-- Inlined Firebase Config -->
-    <script>
-        window.firebaseConfig = {
-            apiKey: "AIzaSyAZBKAckVa4IMvJGjcyndZx6Y1XD52lgro",
-            authDomain: "project-zirconium.firebaseapp.com",
-            projectId: "project-zirconium",
-            storageBucket: "project-zirconium.firebasestorage.app",
-            messagingSenderId: "1096564243475",
-            appId: "1:1096564243475:web:6d0956a70125eeea1ad3e6",
-            measurementId: "G-1D4F692C1Q"
-        };
-    </script>
+
 
     <!-- Local Bootstrapper -->
     <script>
 (function() {
-    const CDN_BASE = ''; // Changed from CDN URL to empty string for local loading
+    const CDN_BASE = 'https://your-cdn-url.com/web-files'; // TODO: Update with your actual CDN URL for web-files
     
-    // Inlined Module for config interception
-    const FIREBASE_CONFIG_MODULE = `data:text/javascript;charset=utf-8,export const firebaseConfig = window.firebaseConfig;`;
+
 
     // Process HTML content to intercept specific modules and fix critical attributes
     function processHtml(html) {
         // Intercept Module Imports for firebase-config.js
-        html = html.replace(/(import\s+(?:[\s\S]*?\s+from\s+)?)(['"])(?!http|\/\/|data:)([^'"]+)(['"])/g, (match, preImport, quote1, url, quote2) => {
-             if (url.includes('firebase-config.js')) {
-                 return `${preImport}${quote1}${FIREBASE_CONFIG_MODULE}${quote2}`;
-             }
-             return match; // Leave others to be resolved by <base> or browser
-        });
 
-        // Intercept Dynamic Imports
-        html = html.replace(/(import\s*\(['"])(?!http|\/\/)([^'"]+)(['"]\))/g, (match, prefix, url, suffix) => {
-             if (url.includes('firebase-config.js')) {
-                 return `${prefix}${FIREBASE_CONFIG_MODULE}${suffix}`;
-             }
-             return match;
-        });
         
         return html;
     }
@@ -132,19 +107,7 @@
                 content = content.replace(/window\.location\.href\s*=\s*['"]logged-in\/dashboard\.html['"]/g, `window.localRedirect('logged-in/dashboard.html')`);
 
                 // Import Fix
-                content = content.replace(/(import\s+(?:[\s\S]*?\s+from\s+)?)(['"])(?!http|\/\/|data:)([^'"]+)(['"])/g, (match, preImport, quote1, url, quote2) => {
-                     if (url.includes('firebase-config.js')) {
-                         return `${preImport}${quote1}${FIREBASE_CONFIG_MODULE}${quote2}`;
-                     }
-                     return match;
-                });
-                
-                content = content.replace(/(import\s*\(['"])(?!http|\/\/)([^'"]+)(['"]\))/g, (match, prefix, url, suffix) => {
-                     if (url.includes('firebase-config.js')) {
-                         return `${prefix}${FIREBASE_CONFIG_MODULE}${suffix}`;
-                     }
-                     return match;
-                });
+
                 
                 newScript.innerHTML = content;
             }
@@ -222,8 +185,22 @@
             console.log(`Set Base URL: ${baseUrl}`);
 
             // 2. Fetch Content
-            const response = await fetch(`${CDN_BASE}/${pagePath}`);
-            if (!response.ok) throw new Error(`Failed to load ${pagePath} (HTTP ${response.status})`);
+            const headers = {};
+            const unlockToken = localStorage.getItem('4sp_unlock_token');
+            if (unlockToken) {
+                headers['Authorization'] = `Bearer ${unlockToken}`;
+            }
+
+            const response = await fetch(`${CDN_BASE}/${pagePath}`, { headers });
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    // Token expired or invalid, force re-authentication
+                    localStorage.removeItem('4sp_unlock_token');
+                    showCodeInputUI();
+                    throw new Error('Authentication required.');
+                }
+                throw new Error(`Failed to load ${pagePath} (HTTP ${response.status})`);
+            }
             
             let html = await response.text();
             
@@ -246,14 +223,169 @@
     }
 
     function init() {
-        const uid = localStorage.getItem('4sp_uid');
-        if (uid) {
-            loadPage('logged-in/dashboard.html');
+        // Check for a stored unlock token
+        const unlockToken = localStorage.getItem('4sp_unlock_token');
+        if (unlockToken) {
+            // If token exists, attempt to load the main application
+            // This will involve verifying the token with the server and then downloading the main app
+            // For now, we'll just simulate loading the dashboard
+            loadMainApplication();
         } else {
-            loadPage('authentication.html');
+            // If no token, show the code input UI
+            showCodeInputUI();
         }
     }
 
+    // This function will be called when a valid unlock token is present
+    async function loadMainApplication() {
+        // UI Reset
+        document.body.innerHTML = `
+            <div class="loader-container">
+                <div class="spinner"></div>
+                <p class="text-custom-light-gray tracking-widest text-sm">LOADING APPLICATION...</p>
+            </div>`;
+        
+        // In a real scenario, this would involve fetching the actual application content
+        // using the unlock token to authorize the download.
+        // For now, we'll load a placeholder 'dashboard' from the CDN_BASE.
+        await loadPage('logged-in/dashboard.html'); 
+    }
+
+    // Function to display the code input form
+    function showCodeInputUI() {
+        document.body.innerHTML = `
+            <div class="flex items-center justify-center min-h-screen bg-custom-darkest-gray text-custom-white-gray p-4">
+                <div class="bg-custom-dark-gray p-8 rounded-lg shadow-xl max-w-md w-full">
+                    <h1 class="text-2xl font-bold text-center mb-6">Unlock 4SP Local Client</h1>
+                    <p class="text-custom-light-gray text-center mb-6">Enter your one-time unlock code below to access the application.</p>
+                    
+                    <div class="mb-4">
+                        <label for="unlockCode" class="block text-sm font-medium text-custom-white-gray mb-2">Unlock Code:</label>
+                        <input type="text" id="unlockCode" class="w-full px-4 py-2 rounded-md bg-custom-medium-gray text-custom-white-gray border border-custom-light-gray focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Paste your code here" required>
+                    </div>
+                    
+                    <button id="redeemCodeBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-300">
+                        Unlock
+                    </button>
+                    
+                    <p id="messageArea" class="text-center mt-4 text-sm"></p>
+                    
+                    <p class="text-custom-light-gray text-xs text-center mt-6">
+                        Need a code? Get one from the <a href="https://4sp-organization.github.io" target="_blank" class="text-blue-400 hover:underline">4SP Connector Site</a>.
+                    </p>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('redeemCodeBtn').addEventListener('click', async () => {
+            const code = document.getElementById('unlockCode').value.trim();
+            const messageArea = document.getElementById('messageArea');
+            messageArea.textContent = '';
+            messageArea.className = 'text-center mt-4 text-sm'; // Reset styling
+            
+            if (!code) {
+                messageArea.textContent = 'Please enter an unlock code.';
+                messageArea.classList.add('text-yellow-400');
+                return;
+            }
+            
+            messageArea.textContent = 'Verifying code...';
+            messageArea.classList.add('text-blue-400');
+            
+            // TODO: Implement actual redemption logic here
+            // This will involve device fingerprinting and calling the redeemCode Cloud Function
+            try {
+                // Simulate API call
+                const deviceFingerprint = await getDeviceFingerprint(); // Implement this function
+                const redeemResponse = await redeemUnlockCode(code, deviceFingerprint); // Implement this function
+
+                if (redeemResponse.success) {
+                    localStorage.setItem('4sp_unlock_token', redeemResponse.token);
+                    messageArea.textContent = 'Code redeemed successfully! Loading application...';
+                    messageArea.classList.add('text-green-400');
+                    setTimeout(loadMainApplication, 1500); // Redirect after a short delay
+                } else {
+                    messageArea.textContent = redeemResponse.message || 'Invalid or expired code.';
+                    messageArea.classList.add('text-red-400');
+                }
+            } catch (error) {
+                console.error('Redemption error:', error);
+                messageArea.textContent = 'An error occurred during redemption.';
+                messageArea.classList.add('text-red-400');
+            }
+        });
+    }
+    
+    // Placeholder for actual device fingerprinting (to be implemented)
+    async function getDeviceFingerprint() {
+        // This is a simplified example. A robust fingerprint would combine multiple factors.
+        // For now, let's use a combination of user agent, screen resolution, and a stored random ID.
+        let deviceId = localStorage.getItem('4sp_device_id');
+        if (!deviceId) {
+            deviceId = crypto.randomUUID(); // Generate a unique ID
+            localStorage.setItem('4sp_device_id', deviceId);
+        }
+        
+        const fingerprintData = {
+            deviceId: deviceId,
+            userAgent: navigator.userAgent,
+            screen: {
+                width: screen.width,
+                height: screen.height,
+                availWidth: screen.availWidth,
+                availHeight: screen.availHeight,
+                colorDepth: screen.colorDepth,
+                pixelDepth: screen.pixelDepth
+            },
+            language: navigator.language,
+            // Add more attributes as needed for robustness
+        };
+        // Hash the fingerprint data to send a compact and non-PII string
+        const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(fingerprintData)));
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const fingerprintHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        
+        return fingerprintHash;
+    }
+
+    // Placeholder for calling the redeemCode Cloud Function (to be implemented)
+    async function redeemUnlockCode(code, fingerprint) {
+        // TODO: Replace with actual Cloud Function endpoint
+        const REDEEM_ENDPOINT = 'https://your-cloud-functions-url.cloudfunctions.net/redeemCode'; 
+        
+        const response = await fetch(REDEEM_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ code, fingerprint }),
+        });
+        
+        if (!response.ok) {
+            // Handle HTTP errors
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+        }
+        
+        return response.json(); // Expected: { success: true, token: "short-lived-token" } or { success: false, message: "error" }
+    }
+
+    window.localRedirect = (path) => {
+        const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+        const unlockToken = localStorage.getItem('4sp_unlock_token');
+
+        if (!unlockToken) {
+            // If no unlock token, always show the code input UI
+            showCodeInputUI();
+            return;
+        }
+
+        // If there's an unlock token, we assume the app is loaded and handle internal navigation
+        // For now, this just reloads the main application content based on the path.
+        // In a more complex SPA, this would trigger client-side routing.
+        loadPage(cleanPath); 
+    };
+    
     // Intercept Clicks for Navigation
     document.addEventListener('click', async (e) => {
         const link = e.target.closest('a');
@@ -277,33 +409,8 @@
             }
         }
     });
-    
-    window.localRedirect = (path) => {
-        const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-        
-        // Auth Logic
-        if (cleanPath.includes('authentication.html') || cleanPath.includes('index.html')) {
-             loadPage('authentication.html');
-        } else if (cleanPath.includes('logged-in/dashboard.html')) {
-             if(localStorage.getItem('4sp_uid')) {
-                 loadPage('logged-in/dashboard.html');
-             } else {
-                 loadPage('authentication.html');
-             }
-        } else if (cleanPath.includes('logged-in/settings.html')) {
-             if(localStorage.getItem('4sp_uid')) {
-                 loadPage('logged-in/settings.html');
-             } else {
-                 loadPage('authentication.html');
-             }
-        }
-        else {
-            loadPage(cleanPath); 
-        }
-    };
-    
-    init();
 
+    init();
 })();
     </script>
 </body>

@@ -144,5 +144,15 @@ service cloud.firestore {
       // No one can delete analytics sessions from the client directly, only admins via backend or console.
       allow delete: if false;
     }
+    // ----------------------------------------------------------------------------------
+    // X. Unlock Codes Collection (`unlockCodes`)
+    // ----------------------------------------------------------------------------------
+    match /unlockCodes/{codeHash} {
+      // Only Cloud Functions should create, update, or delete these documents directly via Admin SDK.
+      allow create, update, delete: if false; 
+
+      // Authenticated users can read their own codes, and admins can read all codes for auditing.
+      allow read: if isOwner(resource.data.userId) || isAdminOrSuperAdmin();
+    }
   }
 }
