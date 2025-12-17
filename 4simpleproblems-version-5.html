@@ -238,77 +238,30 @@
                 let navScript = await navRes.text();
 
                 // 2. Patch Navigation.js
-                // Remove Firebase Imports
-                navScript = navScript.replace(/import\s+.*?from\s+["']https:\/\/www\.gstatic\.com\/firebasejs\/.*?["'];/g, '');
-                navScript = navScript.replace(/import\s+.*?from\s+["']\.\/firebase-config.js["'];/g, '');
+                // Keep App and Firestore SDKs, but REMOVE Auth SDK load
+                navScript = navScript.replace(/await loadScript\(".*?firebase-auth-compat\.js"\);/g, '// Auth SDK Skipped');
+                
+                // Patch the imports if any (though navigation.js seems to use loadScript mostly)
+                // If there are ES modules imports of auth, remove them
+                navScript = navScript.replace(/import\s+.*?firebase-auth.*?/g, '');
 
                 // Fix Images (Absolute paths to CDN)
                 navScript = navScript.replace(/["']\/images\//g, `"${CDN_BASE}images/`);
                 
-                // Inject Mock Firebase Logic
-                const mockAuthLogic = `
-                    // --- MOCK FIREBASE FOR LOCAL CLIENT ---
-                    const firebaseConfig = {}; 
-                    const app = {}; 
-                    const auth = { 
-                        currentUser: window.currentUser, 
-                        signOut: () => window.parent.postMessage({type: 'LOGOUT_REQUEST'}, '*') 
-                    };
-                    const db = {};
-
-                    // Mock SDK Functions
-                    const initializeApp = () => ({});
-                    const getAuth = () => auth;
-                    const getFirestore = () => db;
-                    const doc = () => ({});
-                    const getDoc = async () => ({ 
-                        exists: () => true, 
-                        data: () => window._USER_DATA 
-                    });
-                    const setDoc = async () => {};
-                    const updateDoc = async (ref, data) => {
-                        window.parent.postMessage({type: 'UPDATE_USER', data}, '*');
-                    };
-                    const onSnapshot = () => {};
-                    const collection = () => ({});
-                    const query = () => ({});
-                    const where = () => ({});
-                    const getDocs = async () => ({ empty: true, docs: [] });
-                    const serverTimestamp = () => new Date();
-                    const setPersistence = async () => {};
-                    const browserLocalPersistence = {};
-                    const setLogLevel = () => {};
-
-                    const onAuthStateChanged = (authInstance, callback) => {
-                        if (window.currentUser) {
-                            callback(window.currentUser);
-                        }
-                        return () => {};
-                    };
-
-                    const signInWithPopup = async () => {};
-                    const GoogleAuthProvider = class {};
-                    const GithubAuthProvider = class {};
-                    const TwitterAuthProvider = class {};
-                    const OAuthProvider = class {};
-                    const getAdditionalUserInfo = () => ({});
-                    const fetchSignInMethodsForEmail = async () => [];
-                    const sendPasswordResetEmail = async () => {};
-                    const sendEmailVerification = async () => {};
-                    const createUserWithEmailAndPassword = async () => {};
-                    const signInWithEmailAndPassword = async () => {};
-                    const signOut = async () => {
-                         window.parent.postMessage({type: 'LOGOUT_REQUEST'}, '*');
-                    };
-                `;
-
-                navScript = mockAuthLogic + '\n' + navScript;
+                // Inject Mock Auth shim right before initializeApp is called
+                // We assume firebase global is available after app-compat loads
+                navScript = navScript.replace('initializeApp(pages, FIREBASE_CONFIG);', `
+                    // SHIM AUTH
+                    firebase.auth = () => window.mockAuth;
+                    // Proceed
+                    initializeApp(pages, FIREBASE_CONFIG);
+                `);
 
                 // 3. Patch Dashboard HTML
                 const baseTag = `<base href="${CDN_BASE}logged-in/">`;
                 
                 // User & Env setup script
-                // CRITICAL: Escape closing script tag
+                // We define mockAuth here
                 const setupScript = `
                     <script>
                         window._LOCAL_MODE = true;
@@ -323,7 +276,18 @@
                             providerData: [],
                             emailVerified: true
                         };
+
+                        // --- MOCK AUTH ---
+                        window.mockAuth = {
+                            currentUser: window.currentUser,
+                            onAuthStateChanged: (cb) => {
+                                if (window.currentUser) cb(window.currentUser);
+                                return () => {};
+                            },
+                            signOut: () => window.parent.postMessage({type: 'LOGOUT_REQUEST'}, '*')
+                        };
                         
+                        // Handle Links
                         document.addEventListener('click', e => {
                             const link = e.target.closest('a');
                             if (link && link.href) {
@@ -338,7 +302,8 @@
                     <\/script>
                 `;
 
-                const navScriptTag = `<script type="module">${navScript}<\/script>`;
+                // Re-inject the patched navigation.js
+                const navScriptTag = `<script>${navScript}<\/script>`;
                 html = html.replace(/<script\s+src=["']\.\.\/navigation\.js["']><\/script>/, navScriptTag);
                 
                 if (!html.includes(navScriptTag)) {
@@ -352,7 +317,9 @@
                 }
 
                 const doc = appFrame.contentWindow.document;
-                doc.open(); doc.write(html); doc.close();
+                doc.open();
+                doc.write(html);
+                doc.close();
 
             } catch (e) {
                 console.error("Load error:", e);
