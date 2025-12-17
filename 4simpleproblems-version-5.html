@@ -172,14 +172,16 @@
 
                 // 2. Patch Navigation.js
                 // Remove Firebase Imports
-                navScript = navScript.replace(/import\s+.*?from\s+["']https:\/\/www\.gstatic\.com\/firebasejs\/.*?["'];/g, '');
-                navScript = navScript.replace(/import\s+.*?from\s+["']\.\/firebase-config\.js["'];/g, '');
+                navScript = navScript.replace(/import\s+.*?from\s+["']https:\/\/www.gstatic.com\/firebasejs\/.*?["'];/g, '');
+                navScript = navScript.replace(/import\s+.*?from\s+["']\.\/firebase-config.js["'];/g, '');
 
                 // Fix Images (Absolute paths to CDN)
                 // Replacing src="/images/..." and internal references to /images/
                 navScript = navScript.replace(/["']\/images\//g, `"${CDN_BASE}images/`);
                 
                 // Inject Mock Firebase Logic at the top of navigation.js
+                // NOTE: We used backticks for string literals inside the template literal below.
+                // We MUST escape the closing script tag to prevent HTML parser breakage.
                 const mockAuthLogic = `
                     // --- MOCK FIREBASE FOR LOCAL CLIENT ---
                     const firebaseConfig = {}; // Dummy
@@ -246,6 +248,7 @@
                 const baseTag = `<base href="${CDN_BASE}logged-in/">`;
                 
                 // User & Env setup script
+                // We escape the closing script tag here: <\/script>
                 const setupScript = `
                     <script>
                         window._LOCAL_MODE = true;
@@ -270,10 +273,8 @@
                                 const url = new URL(link.href);
                                 if (url.hostname === window.location.hostname || url.hostname === 'cdn.jsdelivr.net' || url.href.includes('v5-4simpleproblems')) {
                                     e.preventDefault();
-                                    // Logic to handle navigation could go here if we were building a full SPA
-                                    // For now, we rely on the iframe maintaining state or re-injecting
                                     console.log("Navigating to:", link.href);
-                                    window.parent.location.reload(); // Simple refresh to "reset" if they navigate away, or implement smarter nav
+                                    window.parent.location.reload(); // Simple refresh to "reset" if they navigate away
                                 }
                             }
                         });
@@ -281,7 +282,6 @@
                 `;
 
                 // Replace the external navigation.js reference with our inline patched version
-                // Looking for: <script src="../navigation.js"></script> or similar
                 const navScriptTag = `<script type="module">${navScript}</script>`;
                 html = html.replace(/<script\s+src=["']\.\.\/navigation\.js["']><\/script>/, navScriptTag);
                 
@@ -329,35 +329,16 @@
             }
 
             if (msg.type === 'NAVIGATE') {
-                // Fetch new page and render in iframe (similar to loadDashboard)
-                // This ensures we keep our mocks alive
-                // We need to strip the CDN base to get the relative path or just use the URL
                 const targetUrl = msg.url;
                 
-                // Simple fetch and replace
                 try {
                     const response = await fetch(targetUrl);
                     let html = await response.text();
-                    const baseTag = `<base href="${CDN_BASE}logged-in/">`; // Simplified base
-                    // We need to re-inject the mock script every time
-                    // ... (reuse injection logic) ...
-                    // For brevity in this artifact, reusing the logic via function would be better,
-                    // but I'll trust the Dashboard -> Settings navigation is minimal.
-                    
-                    // Actually, for a robust client, we really should assume the 'navigation.js' 
-                    // in the loaded page will try to run.
-                    // If we just use iframe navigation, we lose the 'window.firebase' mock 
-                    // unless we use a Service Worker or reliable injection.
-                    // Given constraints, "taking fundamental parts" meant I should probably have 
-                    // built a Single Page App shell. 
-                    
-                    // FALLBACK: Just reload the dashboard if they click Home, etc.
-                    // Or implement a simple loadPage function here.
+                    const baseTag = `<base href="${CDN_BASE}logged-in/">`; 
                     
                     const injectionScript = `
                         <script>
                             window._LOCAL_MODE = true;
-                            // ... (redefine firebase mock) ...
                              window.firebase = {
                                 apps: [],
                                 initializeApp: () => { return {}; },
@@ -369,7 +350,7 @@
                                 firestore: () => ({
                                     collection: () => ({
                                         doc: () => ({
-                                            get: () => Promise.resolve({ exists: true, data: () => ({username: 'User'}) }), // Simplification
+                                            get: () => Promise.resolve({ exists: true, data: () => ({username: 'User'}) }), 
                                             set: () => Promise.resolve(),
                                             update: (d) => window.parent.postMessage({type: 'UPDATE_USER', data:d}, '*')
                                         })
