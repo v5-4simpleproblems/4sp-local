@@ -157,27 +157,102 @@
         }
 
         async function loadDashboard(userData) {
-            // We load the logged-in/dashboard.html from CDN
-            // But we need to inject a script to mock the "Auth" since we are bypassing standard Firebase Auth
-            
             const dashboardUrl = CDN_BASE + 'logged-in/dashboard.html';
+            const navUrl = CDN_BASE + 'navigation.js';
             
             try {
-                const response = await fetch(dashboardUrl);
-                let html = await response.text();
+                // 1. Fetch Dashboard and Navigation Source
+                const [dashRes, navRes] = await Promise.all([
+                    fetch(dashboardUrl),
+                    fetch(navUrl)
+                ]);
 
-                // INJECTION: Base Tag
+                let html = await dashRes.text();
+                let navScript = await navRes.text();
+
+                // 2. Patch Navigation.js
+                // Remove Firebase Imports
+                navScript = navScript.replace(/import\s+.*?from\s+["']https:\/\/www\.gstatic\.com\/firebasejs\/.*?["'];/g, '');
+                navScript = navScript.replace(/import\s+.*?from\s+["']\.\/firebase-config\.js["'];/g, '');
+
+                // Fix Images (Absolute paths to CDN)
+                // Replacing src="/images/..." and internal references to /images/
+                navScript = navScript.replace(/["']\/images\//g, `"${CDN_BASE}images/`);
+                
+                // Inject Mock Firebase Logic at the top of navigation.js
+                const mockAuthLogic = `
+                    // --- MOCK FIREBASE FOR LOCAL CLIENT ---
+                    const firebaseConfig = {}; // Dummy
+                    const app = {}; 
+                    const auth = { 
+                        currentUser: window.currentUser, 
+                        signOut: () => window.parent.postMessage({type: 'LOGOUT_REQUEST'}, '*') 
+                    };
+                    const db = {};
+
+                    // Mock SDK Functions
+                    const initializeApp = () => ({});
+                    const getAuth = () => auth;
+                    const getFirestore = () => db;
+                    const doc = () => ({});
+                    const getDoc = async () => ({ 
+                        exists: () => true, 
+                        data: () => window._USER_DATA 
+                    });
+                    const setDoc = async () => {};
+                    const updateDoc = async (ref, data) => {
+                        window.parent.postMessage({type: 'UPDATE_USER', data}, '*');
+                    };
+                    const onSnapshot = () => {};
+                    const collection = () => ({});
+                    const query = () => ({});
+                    const where = () => ({});
+                    const getDocs = async () => ({ empty: true, docs: [] });
+                    const serverTimestamp = () => new Date();
+                    const setPersistence = async () => {};
+                    const browserLocalPersistence = {};
+                    const setLogLevel = () => {};
+
+                    // CRITICAL: Always fire with our local user, never null
+                    const onAuthStateChanged = (authInstance, callback) => {
+                        if (window.currentUser) {
+                            callback(window.currentUser);
+                        }
+                        return () => {};
+                    };
+
+                    // Stub other potential exports
+                    const signInWithPopup = async () => {};
+                    const GoogleAuthProvider = class {};
+                    const GithubAuthProvider = class {};
+                    const TwitterAuthProvider = class {};
+                    const OAuthProvider = class {};
+                    const getAdditionalUserInfo = () => ({});
+                    const fetchSignInMethodsForEmail = async () => [];
+                    const sendPasswordResetEmail = async () => {};
+                    const sendEmailVerification = async () => {};
+                    const createUserWithEmailAndPassword = async () => {};
+                    const signInWithEmailAndPassword = async () => {};
+                    const signOut = async () => {
+                         window.parent.postMessage({type: 'LOGOUT_REQUEST'}, '*');
+                    };
+                `;
+
+                // Prepend mocks to the script
+                navScript = mockAuthLogic + '\n' + navScript;
+
+                // 3. Patch Dashboard HTML
+                // Base Tag for relative assets
                 const baseTag = `<base href="${CDN_BASE}logged-in/">`;
                 
-                // INJECTION: Mock Auth & Helpers
-                // We overwrite key functions to work with our "Code Auth" system
-                const injectionScript = `
+                // User & Env setup script
+                const setupScript = `
                     <script>
                         window._LOCAL_MODE = true;
                         window._USER_DOC_ID = "${currentUserDocId}";
                         window._USER_DATA = ${JSON.stringify(userData)};
                         
-                        // Mock Firebase Auth
+                        // Define Current User
                         window.currentUser = {
                             uid: "${currentUserDocId}",
                             displayName: "${userData.displayName || 'User'}",
@@ -186,77 +261,44 @@
                             providerData: [],
                             emailVerified: true
                         };
-
-                        // Override Navigation.js internal auth check if possible, 
-                        // or rely on the fact that we don't init standard auth flow inside the frame 
-                        // the same way.
-                        // Actually, navigation.js waits for onAuthStateChanged. We need to mock that.
-
-                        // We need to hijack firebase.auth() if the page uses compat, 
-                        // or module imports. Since navigation.js uses compat from CDN...
                         
-                        // Wait for firebase to load then mock
-                        const originalInit = window.onload;
-                        
-                        // We will inject a shim that runs BEFORE navigation.js
-                        window.firebase = {
-                            apps: [],
-                            initializeApp: () => { return {}; },
-                            auth: () => ({
-                                onAuthStateChanged: (cb) => {
-                                    // Immediately trigger with our mock user
-                                    cb(window.currentUser);
-                                    return () => {};
-                                },
-                                currentUser: window.currentUser,
-                                signOut: () => {
-                                    // Communicate with parent to unlink/reset
-                                    window.parent.postMessage({type: 'LOGOUT_REQUEST'}, '*');
-                                }
-                            }),
-                            firestore: () => ({
-                                collection: () => ({
-                                    doc: () => ({
-                                        onSnapshot: () => {},
-                                        get: () => Promise.resolve({ exists: true, data: () => window._USER_DATA }),
-                                        set: () => Promise.resolve(),
-                                        update: (data) => {
-                                            // Handle settings updates (username etc) via Parent
-                                            window.parent.postMessage({type: 'UPDATE_USER', data}, '*');
-                                            return Promise.resolve();
-                                        }
-                                    })
-                                }),
-                                doc: () => ({ /* stub */ })
-                            })
-                        };
-                        
-                        // Handle links to stay in iframe
+                        // Intercept Links
                         document.addEventListener('click', e => {
                             const link = e.target.closest('a');
                             if (link && link.href) {
-                                // If it's a navigational link within our app
-                                if (link.href.includes('v5-4simpleproblems') || link.href.startsWith('http')) {
-                                    // For now, let's just let the iframe navigate if it can, 
-                                    // BUT we need to reinject our mocks on the new page.
-                                    // This is hard with simple iframe navigation.
-                                    // BETTER: Fetch and write like we did for dashboard.
+                                // If internal link, prevent default and notify parent
+                                const url = new URL(link.href);
+                                if (url.hostname === window.location.hostname || url.hostname === 'cdn.jsdelivr.net' || url.href.includes('v5-4simpleproblems')) {
                                     e.preventDefault();
-                                    window.parent.postMessage({type: 'NAVIGATE', url: link.href}, '*');
+                                    // Logic to handle navigation could go here if we were building a full SPA
+                                    // For now, we rely on the iframe maintaining state or re-injecting
+                                    console.log("Navigating to:", link.href);
+                                    window.parent.location.reload(); // Simple refresh to "reset" if they navigate away, or implement smarter nav
                                 }
                             }
                         });
-
                     <\/script>
                 `;
 
-                // Insert injections
-                if (html.includes('<head>')) {
-                    html = html.replace('<head>', `<head>${baseTag}${injectionScript}`);
-                } else {
-                    html = `${baseTag}${injectionScript}${html}`;
+                // Replace the external navigation.js reference with our inline patched version
+                // Looking for: <script src="../navigation.js"></script> or similar
+                const navScriptTag = `<script type="module">${navScript}</script>`;
+                html = html.replace(/<script\s+src=["']\.\.\/navigation\.js["']><\/script>/, navScriptTag);
+                
+                // Fallback if the path is different in dashboard.html
+                if (!html.includes(navScriptTag)) {
+                    // Try generic injection if replacement failed
+                     html = html.replace('</body>', `${navScriptTag}</body>`);
                 }
 
+                // Inject Setup & Base
+                if (html.includes('<head>')) {
+                    html = html.replace('<head>', `<head>${baseTag}${setupScript}`);
+                } else {
+                    html = `${baseTag}${setupScript}${html}`;
+                }
+
+                // Write to Frame
                 const doc = appFrame.contentWindow.document;
                 doc.open();
                 doc.write(html);
@@ -264,7 +306,7 @@
 
             } catch (e) {
                 console.error("Load error:", e);
-                lockMessage.textContent = "Failed to load dashboard from CDN.";
+                lockMessage.textContent = "Failed to load dashboard resources.";
             }
         }
 
