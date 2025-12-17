@@ -45,12 +45,10 @@ exports.generateCode = onRequest({ cors: true }, async (req, res) => {
         return;
     }
 
-    // TODO: Add authentication/authorization for who can generate codes
-    // For example, only authenticated users from the connector site should be able to.
-    // if (!req.auth || !req.auth.uid) {
-    //     res.status(403).send('Unauthorized');
-    //     return;
-    // }
+    if (!req.auth || !req.auth.uid) {
+        res.status(403).send('Unauthorized: Authentication required.');
+        return;
+    }
 
     try {
         const plaintextCode = generateRandomCode(12); // Generate a 12-character code
@@ -62,15 +60,19 @@ exports.generateCode = onRequest({ cors: true }, async (req, res) => {
             expiresAt: expiryDate,
             used: false,
             revoked: false,
-            userId: req.auth ? req.auth.uid : null, // Associate with a user if authenticated
+            userId: req.auth.uid, // Associate with the authenticated user
             deviceFingerprint: null, // Will be set upon redemption
             usedAt: null
         });
 
-        logger.info(`Generated code for user: ${req.auth ? req.auth.uid : 'anonymous'}`);
+        logger.info(`Generated code for user: ${req.auth.uid}`);
         res.status(200).json({ success: true, code: plaintextCode, expiresAt: expiryDate.toDate() });
 
     } catch (error) {
+        logger.error("Error generating code:", error);
+        res.status(500).json({ error: "Internal Server Error", details: error.message });
+    }
+});
     }
 });
 
