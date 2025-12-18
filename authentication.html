@@ -3,313 +3,565 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4SP - LINK DEVICE</title>
+    <title>4SP - AUTHENTICATION</title>
+    <meta name="description" content="Log into or create your 4SP account to access the student toolkit.">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    
+    <script src="../navigation-mini.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="../injector.js"></script>
     <script>
+        // Unified Tailwind CSS configuration for a consistent dark theme
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        'custom-darkest-gray': '#040404',
-                        'custom-dark-gray': '#111111',
-                        'custom-medium-gray': '#252525',
-                        'custom-light-gray': '#505050',
-                        'custom-white-gray': '#c0c0c0',
+                        'custom-darkest-gray': '#040404', // Body background
+                        'custom-dark-gray': '#111111',    // Form container background
+                        'custom-medium-gray': '#252525', // Borders, inputs, buttons
+                        'custom-light-gray': '#505050',  // Labels and secondary text
+                        'custom-lighter-gray': '#808080', // Hover states and subtle text
+                        'custom-white-gray': '#c0c0c0',  // Main text and headings
                     }
                 }
             }
         }
     </script>
+    
     <style>
-        :root { --geist-foreground: 192, 192, 192; --geist-background: 7, 7, 7; }
-        body { font-family: 'Geist', sans-serif; background-color: rgb(var(--geist-background)); color: rgb(var(--geist-foreground)); }
-        h1, h2, h3 { font-weight: 400 !important; }
+        :root {
+            --geist-foreground: 192, 192, 192; /* custom-white-gray */
+            --geist-background: 7, 7, 7;       /* custom-darkest-gray */
+        }
+
+        body {
+            font-family: 'Geist', sans-serif;
+            background-color: rgb(var(--geist-background));
+            color: rgb(var(--geist-foreground));
+            transition: all 0.3s ease;
+            font-weight: 300; /* CUSTOM: Lighter base font weight */
+        }
+
+        /* CUSTOM: Lighter bold/headings to match notes.html */
+        h1, h2, h3, .font-bold, .font-semibold, strong, .tracking-tighter {
+            font-weight: 400 !important;
+        }
+
+        .btn-social {
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+        .btn-social:hover {
+            /* Keep existing hover effect for social buttons */
+            background-color: rgba(37, 37, 37, 0.7); /* custom-medium-gray with transparency */
+            border-color: #383838;
+        }
+        
+        .message-area { min-height: 20px; }
+        .error-message { color: #f87171; font-weight: 400; /* Match new heading weight */ }
+        .success-message { color: #4ade80; font-weight: 400; }
+        .warning-message { color: #fbbf24; font-weight: 400; }
+        
+        .auth-split-container { max-width: 1200px; margin: 0 auto; }
+        @media (min-width: 768px) { .auth-col { } }
+        @media (max-width: 767px) {
+            .right-col { display: none; }
+            .left-col { border-right: none; }
+        }
     </style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-1D4F692C1Q"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-1D4F692C1Q');
+</script>
+    
 </head>
 <body class="bg-custom-darkest-gray text-custom-white-gray min-h-screen flex flex-col">
 
     <div id="navbar-container"></div>
-    <main class="flex-grow flex items-center justify-center p-4">
-        <div class="w-full max-w-md bg-custom-dark-gray border border-custom-medium-gray p-8 rounded-2xl shadow-2xl">
-            <h2 class="text-3xl text-center mb-6 tracking-tighter text-white">Link Device</h2>
-            <p class="text-center text-custom-light-gray mb-8">
-                Enter the 12-character connection code from your account dashboard.
-            </p>
+    <main class="flex-grow flex items-stretch justify-center p-0">
+        <div class="auth-split-container bg-custom-darkest-gray flex flex-wrap w-full border-0 overflow-hidden p-0">
+            
+            <!-- Forms Container -->
+            <div id="forms-container" class="auth-col left-col flex-1 p-8 flex flex-col justify-center items-center bg-custom-darkest-gray min-w-[300px]">
 
-            <div id="authSection" class="flex flex-col gap-4">
-                <button id="generateCodeBtn" class="w-full p-4 bg-white text-black font-medium rounded-xl hover:bg-gray-200 transition">
-                    GENERATE CODE
-                </button>
-                <div id="message" class="mt-4 text-center text-sm min-h-[20px]"></div>
-                
-                <div id="generatedCodeDisplay" class="hidden mt-6 bg-custom-medium-gray p-4 rounded-xl text-center">
-                    <p class="text-custom-light-gray text-sm mb-2">Your one-time unlock code:</p>
-                    <div class="relative">
-                        <input type="text" id="displayCode" readonly class="w-full p-3 text-center text-2xl font-mono tracking-widest bg-black border border-custom-medium-gray rounded-xl uppercase text-white select-all">
-                        <button id="copyCodeBtn" class="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-custom-dark-gray rounded-lg hover:bg-custom-light-gray transition">
-                            <i class="fa-regular fa-copy text-custom-white-gray"></i>
-                        </button>
+                <!-- Login View -->
+                <div id="loginContainer" class="w-full flex flex-col items-center">
+                    <h2 class="text-3xl font-normal text-custom-white-gray mb-6 text-center w-full tracking-tighter">Login to Your Account</h2>
+                    <form id="loginForm" novalidate class="w-full max-w-md"> 
+                        <div class="mb-5">
+                            <label for="loginEmail" class="block mb-2 text-custom-light-gray text-sm font-light text-left">Email</label>
+                            <input type="email" id="loginEmail" placeholder="Enter your email" required class="w-full p-3 border border-custom-medium-gray bg-custom-dark-gray rounded-xl text-custom-white-gray transition focus:border-custom-light-gray focus:ring focus:ring-custom-light-gray/50 focus:outline-none">
+                        </div>
+                        <div class="mb-5">
+                            <label for="loginPassword" class="block mb-2 text-custom-light-gray text-sm font-light text-left">Password</label>
+                            <input type="password" id="loginPassword" placeholder="Enter your password" required class="w-full p-3 border border-custom-medium-gray bg-custom-dark-gray rounded-xl text-custom-white-gray transition focus:border-custom-light-gray focus:ring focus:ring-custom-light-gray/50 focus:outline-none">
+                        </div>
+                        <button type="submit" class="w-full p-3 text-lg rounded-xl font-normal ring-1 ring-white/20 text-white bg-white/5 hover:bg-white/10 transition">LOGIN</button>
+                    </form>
+                    <div id="loginMessage" class="message-area w-full max-w-md mt-4 text-center text-sm"></div>
+                    <div class="w-full max-w-md mt-4 text-center"> 
+                        <a id="forgotPasswordLink" class="text-white hover:text-gray-300 font-normal text-sm cursor-pointer">Forgot Password?</a> 
                     </div>
-                    <p id="codeExpiry" class="text-xs text-custom-light-gray mt-2"></p>
-                    <p class="text-sm text-red-400 mt-4 font-bold">
-                        IMPORTANT: Copy this code now! It will only be shown once.
+                    <p class="text-sm text-custom-light-gray mt-6 text-center w-full max-w-md">
+                        Don't have an account? 
+                        <a id="showSignupLink" href="#" class="text-white hover:text-gray-300 font-normal transition">Sign up here</a>
+                    </p>
+                </div>
+
+                <!-- Reset Password View -->
+                <div id="resetPasswordContainer" class="w-full flex-col items-center" style="display: none;">
+                    <h2 class="text-3xl font-normal text-custom-white-gray mb-6 text-center w-full tracking-tighter">Reset Your Password</h2>
+                    <p class="text-custom-light-gray text-base mb-6 text-center max-w-md font-normal">Enter your email address and we'll send you a link to reset your password.</p>
+                    <form id="resetPasswordForm" novalidate class="w-full max-w-md">
+                        <div class="mb-5">
+                            <label for="resetEmail" class="block mb-2 text-custom-light-gray text-sm font-light text-left">Email</label>
+                            <input type="email" id="resetEmail" placeholder="Enter your registered email" required class="w-full p-3 border border-custom-medium-gray bg-custom-dark-gray rounded-xl text-custom-white-gray transition focus:border-custom-light-gray focus:ring focus:ring-custom-light-gray/50 focus:outline-none">
+                        </div>
+                        <button type="submit" class="w-full p-3 text-lg rounded-xl font-normal ring-1 ring-white/20 text-white bg-white/5 hover:bg-white/10 transition">SEND RESET LINK</button>
+                    </form>
+                    <div id="resetMessage" class="message-area w-full max-w-md mt-4 text-center text-sm"></div>
+                    <div class="w-full max-w-md mt-6 text-center"> 
+                        <a id="backToLoginLink" class="text-white hover:text-gray-300 font-normal text-sm cursor-pointer">&larr; Back to Login</a> 
+                    </div>
+                </div>
+
+                <!-- Choose Username View -->
+                <div id="usernameContainer" class="w-full flex-col items-center" style="display: none;">
+                    <h2 class="text-3xl font-normal text-custom-white-gray mb-6 text-center w-full tracking-tighter">Choose Your Username</h2>
+                    <form id="usernameForm" novalidate class="w-full max-w-md"> 
+                        <div class="mb-5">
+                            <label for="signupUsername" class="block mb-2 text-custom-light-gray text-sm font-light text-left">Username</label>
+                            <input type="text" id="signupUsername" placeholder="6-24 characters, including symbols" required class="w-full p-3 border border-custom-medium-gray bg-custom-dark-gray rounded-xl text-custom-white-gray transition focus:border-custom-light-gray focus:ring focus:ring-custom-light-gray/50 focus:outline-none">
+                            <p class="text-xs text-custom-lighter-gray mt-2 text-left font-light">Allowed symbols: .,-+\_!?$</p>
+                        </div>
+                        <button type="submit" class="w-full p-3 text-lg rounded-xl font-normal ring-1 ring-white/20 text-white bg-white/5 hover:bg-white/10 transition">NEXT</button>
+                    </form>
+                    <div id="usernameMessage" class="message-area w-full max-w-md mt-4 text-center text-sm"></div>
+                    <p class="text-sm text-custom-light-gray mt-6 text-center w-full max-w-md">
+                        Already have an account? 
+                        <a id="showLoginLink" href="#" class="text-white hover:text-gray-300 font-normal transition">Login here</a>
                     </p>
                 </div>
                 
-                <!-- Placeholder for existing codes and revoke functionality -->
-                <div id="manageCodesSection" class="mt-8 pt-4 border-t border-custom-medium-gray hidden">
-                    <h3 class="text-xl text-center mb-4 text-white">Your Active Codes</h3>
-                    <div id="activeCodesList" class="flex flex-col gap-3">
-                        <!-- Codes will be listed here -->
-                        <p class="text-custom-light-gray text-center">No active codes found.</p>
+                <!-- Set Credentials View -->
+                <div id="signupContainer" class="w-full flex-col items-center" style="display: none;">
+                    <h2 class="text-3xl font-normal text-custom-white-gray mb-6 text-center w-full tracking-tighter">Set Your Credentials</h2>
+                    <form id="signupForm" novalidate class="w-full max-w-md"> 
+                        <div class="mb-5">
+                            <label for="signupEmail" class="block mb-2 text-custom-light-gray text-sm font-light text-left">Email</label>
+                            <input type="email" id="signupEmail" placeholder="Enter your email" required class="w-full p-3 border border-custom-medium-gray bg-custom-dark-gray rounded-xl text-custom-white-gray transition focus:border-custom-light-gray focus:ring focus:ring-custom-light-gray/50 focus:outline-none">
+                        </div>
+                        <div class="mb-5">
+                            <label for="signupPassword" class="block mb-2 text-custom-light-gray text-sm font-light text-left">Password</label>
+                            <input type="password" id="signupPassword" placeholder="Enter your password" required class="w-full p-3 border border-custom-medium-gray bg-custom-dark-gray rounded-xl text-custom-white-gray transition focus:border-custom-light-gray focus:ring focus:ring-custom-light-gray/50 focus:outline-none">
+                            <p class="text-xs text-custom-lighter-gray mt-2 text-left font-light">At least 8 characters, including a number, an uppercase, and a lowercase letter.</p>
+                        </div>
+                        <button type="submit" class="w-full p-3 text-lg rounded-xl font-normal ring-1 ring-white/20 text-white bg-white/5 hover:bg-white/10 transition">CREATE ACCOUNT</button>
+                    </form>
+                    <div id="signupMessage" class="message-area w-full max-w-md mt-4 text-center text-sm"></div>
+                    <div class="w-full max-w-md mt-6 text-center"> 
+                        <a id="backToUsernameLink" class="text-white hover:text-gray-300 font-normal text-sm cursor-pointer">&larr; Back to Username</a> 
                     </div>
                 </div>
             </div>
-            
-            <div class="mt-8 text-center">
-                <a href="#" id="authHelpLink" class="text-custom-light-gray hover:text-white underline text-sm">
-                    How does this work?
-                </a>
+
+            <!-- Social Auth Container -->
+            <div id="social-auth-container" class="auth-col right-col flex-1 p-8 flex flex-col justify-center items-center bg-custom-darkest-gray">
+                <div class="w-full flex flex-col items-center justify-center">
+                    <h2 class="text-3xl font-normal text-custom-white-gray mb-6 text-center w-full tracking-tighter">Continue instantly</h2>
+                    <p class="text-lg text-custom-light-gray mb-8 text-center max-w-md font-normal">
+                        Use a trusted provider to sign in or create an account in one click.
+                    </p>
+                    
+                    <button id="googleAuthBtn" class="btn-social flex items-center justify-center w-full max-w-md p-3 bg-custom-dark-gray text-custom-white-gray border border-custom-medium-gray rounded-xl font-normal cursor-pointer mb-3">
+                        <img src="images/google-icon.png" alt="Google Logo" class="w-6 h-6 mr-3">
+                        Continue with Google
+                    </button>
+                    <button id="microsoftAuthBtn" class="btn-social flex items-center justify-center w-full max-w-md p-3 bg-custom-dark-gray text-custom-white-gray border border-custom-medium-gray rounded-xl font-normal cursor-pointer mb-3">
+                        <img src="images/microsoft.png" alt="Microsoft Logo" class="w-6 h-6 mr-3">
+                        Continue with Microsoft
+                    </button>
+                    <button id="githubAuthBtn" class="btn-social flex items-center justify-center w-full max-w-md p-3 bg-custom-dark-gray text-custom-white-gray border border-custom-medium-gray rounded-xl font-normal cursor-pointer mb-3">
+                        <img src="images/github-mark-white.png" alt="GitHub Logo" class="w-6 h-6 mr-3">
+                        Continue with GitHub
+                    </button>
+                    <button id="twitterAuthBtn" class="btn-social flex items-center justify-center w-full max-w-md p-3 bg-custom-dark-gray text-custom-white-gray border border-custom-medium-gray rounded-xl font-normal cursor-pointer mb-3">
+                        <img src="../images/x.png" alt="X Logo" class="w-6 h-6 mr-3">
+                        Continue with X
+                    </button>
+
+                    
+                    <p class="text-xs italic text-custom-light-gray text-center max-w-md mt-4 leading-relaxed font-light">
+                        By continuing, you agree to our 
+                        <a href="legal.html#terms-of-service" target="_blank" class="text-white hover:text-gray-300 font-normal">Terms of Service</a> and 
+                        <a href="legal.html#privacy-policy" target="_blank" class="text-white hover:text-gray-300 font-normal">Privacy Policy</a>.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Code Generation Container (HIDDEN BY DEFAULT) -->
+            <div id="code-gen-container" class="hidden auth-col flex-1 p-8 flex flex-col justify-center items-center bg-custom-darkest-gray min-w-[300px] w-full">
+                <div class="w-full max-w-md bg-custom-dark-gray border border-custom-medium-gray rounded-2xl p-6 text-center">
+                    <h3 class="text-xl text-custom-white-gray mb-2">Welcome, <span id="display-name" class="font-bold">User</span></h3>
+                    <p class="text-sm text-custom-light-gray mb-8">You are logged in. Here is your code for the local client.</p>
+                    
+                    <div class="mb-6">
+                        <p class="text-sm text-custom-light-gray mb-2">Your Client Access Code</p>
+                        <div class="relative">
+                            <div id="current-code" class="text-3xl font-mono text-white tracking-widest bg-custom-darkest-gray p-4 rounded-xl border border-custom-medium-gray select-all">...</div>
+                            <button id="copy-code-btn" class="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-custom-light-gray hover:text-white transition" title="Copy to clipboard"><i class="fa-regular fa-copy"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-3">
+                        <button id="generate-code-btn" class="w-full p-3 text-lg rounded-xl font-normal bg-indigo-600 hover:bg-indigo-700 text-white transition">Generate New Code</button>
+                        <button id="unlink-code-btn" class="w-full p-3 text-lg rounded-xl font-normal bg-red-900/30 hover:bg-red-900/50 text-red-200 border border-red-900/50 transition">Unlink Code</button>
+                    </div>
+                    <div id="codeMessage" class="message-area mt-4 text-center text-sm"></div>
+
+                    <div class="mt-8 pt-6 border-t border-custom-medium-gray flex justify-between items-center">
+                        <a href="logged-in/dashboard.html" class="text-indigo-400 hover:text-indigo-300 transition">Go to Dashboard &rarr;</a>
+                        <button id="logoutBtn" class="text-sm text-custom-light-gray hover:text-white transition">Sign Out</button>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
 
-    <script type="module">
-        // Ensure Firebase App and Firebase Auth are loaded before this script executes.
-        // For example, in your index.html or a common bootstrapper:
-        // <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-app.js"></script>
-        // <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-auth.js"></script>
-        // <script src="/firebase-config.js"></script>
-        // <script>firebase.initializeApp(firebaseConfig);</script>
-        // Make sure a user signs in via Google/other providers before reaching this page
-        // (or implement sign-in flow directly on this page if not handled elsewhere).
+    <footer class="border-t border-gray-900 py-6">
+        <div class="mx-auto max-w-7xl px-4 text-center text-gray-500 text-sm">&copy; 2025 4simpleproblems (4SP). Built for students.</div>
+    </footer>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+        getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+        sendPasswordResetEmail, sendEmailVerification, fetchSignInMethodsForEmail, signOut,
+        GoogleAuthProvider, GithubAuthProvider, TwitterAuthProvider, OAuthProvider, signInWithPopup,
+        setPersistence, browserLocalPersistence, getAdditionalUserInfo
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { firebaseConfig } from "./firebase-config.js"; 
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let hasRedirected = false; 
+
+    // --- Unified Data Model ---
+    const getUserDocRef = (userId) => doc(db, 'users', userId);
+    let selectedUsername = null; 
+
+    // --- DOM Elements ---
+    const containers = {
+        login: document.getElementById('loginContainer'),
+        reset: document.getElementById('resetPasswordContainer'),
+        username: document.getElementById('usernameContainer'),
+        signup: document.getElementById('signupContainer'),
+        codeGen: document.getElementById('code-gen-container')
+    };
+    const messageDivs = {
+        login: document.getElementById('loginMessage'),
+        reset: document.getElementById('resetMessage'),
+        username: document.getElementById('usernameMessage'),
+        signup: document.getElementById('signupMessage'),
+        codeGen: document.getElementById('codeMessage')
+    };
+
+    // --- View Management ---
+    const showView = (viewName) => {
+        Object.values(containers).forEach(el => {
+            if (el) el.style.display = 'none'; 
+        });
+        Object.values(messageDivs).forEach(div => {
+            if (div) div.innerHTML = ''; 
+        });
         
-        // This script will assume `firebase.auth()` and `firebase.firestore()` are available.
-        // If using modular SDK, imports would look like:
-        // import { getAuth, onAuthStateChanged } from 'firebase/auth';
-        // import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
+        const targetView = containers[viewName];
+        if (targetView) {
+            targetView.style.display = 'flex';
+            targetView.style.flexDirection = 'column'; 
+        }
+        
+        // Social auth container handling
+        if (viewName !== 'codeGen' && document.getElementById('social-auth-container')) {
+            document.getElementById('social-auth-container').style.display = 'flex';
+        } else if (document.getElementById('social-auth-container')) {
+            document.getElementById('social-auth-container').style.display = 'none';
+        }
+    };
 
-        document.addEventListener('DOMContentLoaded', () => {
-            const generateCodeBtn = document.getElementById('generateCodeBtn');
-            const messageElement = document.getElementById('message');
-            const generatedCodeDisplay = document.getElementById('generatedCodeDisplay');
-            const displayCodeInput = document.getElementById('displayCode');
-            const copyCodeBtn = document.getElementById('copyCodeBtn');
-            const codeExpiryElement = document.getElementById('codeExpiry');
-            const manageCodesSection = document.getElementById('manageCodesSection');
-            const activeCodesList = document.getElementById('activeCodesList');
+    // --- Helper Functions ---
+    const showMessage = (element, text, type = 'error') => {
+        element.innerHTML = text;
+        element.className = `message-area w-full max-w-md mt-4 text-center text-sm ${type}-message`;
+    };
 
-            // TODO: Update these endpoints to your deployed Cloud Functions URLs
-            const CLOUD_FUNCTIONS_BASE_URL = 'https://us-central1-project-zirconium.cloudfunctions.net';
-            const GENERATE_CODE_ENDPOINT = `${CLOUD_FUNCTIONS_BASE_URL}/generateCode`; 
-            const REVOKE_CODE_ENDPOINT = `${CLOUD_FUNCTIONS_BASE_URL}/revokeCode`; 
+    const navigateToDashboard = () => window.location.href = 'logged-in/dashboard.html';
 
-            // Function to get Firebase ID token, if authenticated
-            async function getAuthToken() {
-                try {
-                    // Check if Firebase Auth is initialized and a user is signed in
-                    if (typeof firebase !== 'undefined' && firebase.auth() && firebase.auth().currentUser) {
-                        return await firebase.auth().currentUser.getIdToken();
-                    } else {
-                        // console.warn('Firebase Auth not initialized or user not signed in.');
-                        return null;
-                    }
-                } catch (error) {
-                    console.error('Error getting auth token:', error);
-                    return null;
-                }
-            }
-
-            generateCodeBtn.addEventListener('click', async () => {
-                messageElement.textContent = 'Generating code...';
-                messageElement.className = 'mt-4 text-center text-sm text-yellow-500';
-                generatedCodeDisplay.classList.add('hidden');
-
-                try {
-                    const idToken = await getAuthToken();
-                    if (!idToken) {
-                        messageElement.textContent = 'Please sign in to generate a code.';
-                        messageElement.className = 'mt-4 text-center text-sm text-red-500';
-                        return;
-                    }
-
-                    const response = await fetch(GENERATE_CODE_ENDPOINT, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${idToken}` // Include auth token for function authorization
-                        },
-                        body: JSON.stringify({})
-                    });
-
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.message || 'Failed to generate code.');
-                    }
-
-                    const data = await response.json();
-                    if (data.success) {
-                        displayCodeInput.value = data.code;
-                        codeExpiryElement.textContent = `Expires: ${new Date(data.expiresAt).toLocaleString()}`;
-                        messageElement.textContent = '';
-                        generatedCodeDisplay.classList.remove('hidden');
-
-                        displayCodeInput.select();
-                        displayCodeInput.setSelectionRange(0, 99999);
-
-                        try {
-                            await navigator.clipboard.writeText(data.code);
-                            messageElement.textContent = 'Code generated and copied to clipboard!';
-                            messageElement.className = 'mt-4 text-center text-sm text-green-500';
-                        } catch (err) {
-                            console.warn('Failed to copy to clipboard automatically:', err);
-                            messageElement.textContent = 'Code generated. Please copy it manually.';
-                            messageElement.className = 'mt-4 text-center text-sm text-blue-500';
-                        }
-                        // Refresh the list of active codes
-                        await fetchActiveCodes();
-                    } else {
-                        throw new Error(data.message || 'Unknown error during code generation.');
-                    }
-
-                } catch (error) {
-                    console.error('Error generating code:', error);
-                    messageElement.textContent = `Error: ${error.message}`;
-                    messageElement.className = 'mt-4 text-center text-sm text-red-500';
-                }
+    const createUserDocument = async (user, authMethod, username) => {
+        const isVerified = authMethod !== 'email' || !!user.emailVerified;
+        try {
+            await setDoc(getUserDocRef(user.uid), {
+                email: user.email, 
+                authMethod: authMethod, 
+                createdAt: serverTimestamp(),
+                username: username, 
+                emailVerified: isVerified
             });
+            return true;
+        } catch (error) { 
+            console.error("Error creating user document:", error); 
+            return false; 
+        } 
+    };
 
-            copyCodeBtn.addEventListener('click', async () => {
+    const handleSuccessfulLogin = async (user) => {
+        await setPersistence(auth, browserLocalPersistence);
+        
+        const isProviderLogin = user.providerData.some(p => ['google.com', 'github.com', 'twitter.com', 'microsoft.com'].includes(p.providerId));
+        
+        if (user.emailVerified || isProviderLogin) {                                                                                                                   
+            showView('codeGen');
+        } else {                
+            showMessage(messageDivs.login, 'Your email is not verified. Please check your inbox. <a href="#" id="resend-link" class="underline cursor-pointer">Resend email</a>', 'error');
+            document.getElementById('resend-link').addEventListener('click', async (e) => {
+                e.preventDefault();
                 try {
-                    await navigator.clipboard.writeText(displayCodeInput.value);
-                    messageElement.textContent = 'Code copied to clipboard!';
-                    messageElement.className = 'mt-4 text-center text-sm text-green-500';
-                } catch (err) {
-                    console.error('Failed to copy code:', err);
-                    messageElement.textContent = 'Failed to copy code. Please select and copy manually.';
-                    messageElement.className = 'mt-4 text-center text-sm text-red-500';
-                }
+                    await sendEmailVerification(user);
+                    showMessage(messageDivs.login, 'A new verification link has been sent!', 'success');
+                } catch (err) { showMessage(messageDivs.login, `Error sending email: ${err.message}`); }
             });
+            await signOut(auth);
+        }
+    };
 
-            // Function to fetch and display active codes for the current user
-            async function fetchActiveCodes() {
-                activeCodesList.innerHTML = '<p class="text-custom-light-gray text-center">Loading codes...</p>';
-                manageCodesSection.classList.remove('hidden');
+    const checkProfanity = async (text) => {
+        try {
+            const response = await fetch(`https://www.purgomalum.com/service/containsprofanity?text=${encodeURIComponent(text)}`);
+            const result = await response.text();
+            return result.toLowerCase() === 'true';
+        } catch (error) { console.error('Profanity API error:', error); return false; }
+    };
 
-                try {
-                    const idToken = await getAuthToken();
-                    if (!idToken || !firebase.auth().currentUser) {
-                        activeCodesList.innerHTML = '<p class="text-custom-light-gray text-center">Please sign in to view your codes.</p>';
-                        return;
-                    }
+    const isUsernameTaken = async (username) => {
+        const q = query(collection(db, 'users'), where('username', '==', username));
+        const querySnapshot = await getDocs(q);
+        return !querySnapshot.empty;
+    };
 
-                    // Direct Firestore query example (requires security rule: allow read: if request.auth.uid == resource.data.userId; )
-                    // This rule would need to be added to `other-required/firestore.rules` for this to work
-                    const codesSnapshot = await firebase.firestore().collection('unlockCodes')
-                                            .where('userId', '==', firebase.auth().currentUser.uid)
-                                            .where('used', '==', false)
-                                            .where('revoked', '==', false)
-                                            .get();
-                    
-                    if (codesSnapshot.empty) {
-                        activeCodesList.innerHTML = '<p class="text-custom-light-gray text-center">No active codes found.</p>';
-                        return;
-                    }
+    const validateEmail = (email) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!email) return 'Email is required.';
+        if (!emailRegex.test(email)) return 'The email address format is invalid.';
+        return null;
+    };
+    
+    const validatePassword = (password) => {
+        if (password.length < 8) return 'Password must be at least 8 characters.';
+        if (!/[0-9]/.test(password)) return 'Password must contain at least one number.';
+        if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter.';
+        if (!/[a-z]/.test(password)) return 'Password must contain at least one lowercase letter.';
+        return null;
+    };
 
-                    activeCodesList.innerHTML = ''; // Clear loading message
+    // --- Event Listener Setup ---
+    document.addEventListener('DOMContentLoaded', () => {
+        // Initial view handled by onAuthStateChanged
 
-                    codesSnapshot.forEach(doc => {
-                        const codeData = doc.data();
-                        const codeHash = doc.id; // The document ID is the code hash
-                        const expiration = codeData.expiresAt ? new Date(codeData.expiresAt.toDate()).toLocaleString() : 'Never';
-                        const deviceStatus = codeData.deviceFingerprint ? 'Linked' : 'Not linked';
+        // --- View Navigation ---
+        document.getElementById('showSignupLink').addEventListener('click', (e) => { e.preventDefault(); showView('username'); });
+        document.getElementById('showLoginLink').addEventListener('click', (e) => { e.preventDefault(); showView('login'); });
+        document.getElementById('forgotPasswordLink').addEventListener('click', () => showView('reset'));
+        document.getElementById('backToLoginLink').addEventListener('click', () => showView('login'));
+        document.getElementById('backToUsernameLink').addEventListener('click', () => showView('username'));
 
-                        const codeItem = document.createElement('div');
-                        codeItem.className = 'bg-custom-darkest-gray p-3 rounded-lg flex items-center justify-between';
-                        codeItem.innerHTML = `
-                            <div>
-                                <p class="font-mono text-white text-sm break-all">${codeHash.substring(0, 8)}...</p> <!-- Display partial hash -->
-                                <p class="text-xs text-custom-light-gray">Expires: ${expiration} | Device: ${deviceStatus}</p>
-                            </div>
-                            <button class="revoke-btn bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1 rounded-md transition" data-code-hash="${codeHash}">Revoke</button>
-                        `;
-                        activeCodesList.appendChild(codeItem);
-                    });
+        // --- Form Handlers ---
 
-                    // Add event listeners for revoke buttons
-                    document.querySelectorAll('.revoke-btn').forEach(button => {
-                        button.addEventListener('click', async (event) => {
-                            const hashToRevoke = event.target.dataset.codeHash;
-                            messageElement.textContent = `Revoking code ${hashToRevoke.substring(0, 8)}...`;
-                            messageElement.className = 'mt-4 text-center text-sm text-yellow-500';
+        // Login Form
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            if (!email || !password) { showMessage(messageDivs.login, 'Please enter both email and password.'); return; }
 
-                            try {
-                                const idToken = await getAuthToken();
-                                if (!idToken) {
-                                    messageElement.textContent = 'Please sign in to revoke codes.';
-                                    messageElement.className = 'mt-4 text-center text-sm text-red-500';
-                                    return;
-                                }
-
-                                const response = await fetch(REVOKE_CODE_ENDPOINT, {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'Authorization': `Bearer ${idToken}`
-                                    },
-                                    body: JSON.stringify({ codeHash: hashToRevoke })
-                                });
-
-                                if (!response.ok) {
-                                    const errorData = await response.json();
-                                    throw new Error(errorData.message || 'Failed to revoke code.');
-                                }
-
-                                const data = await response.json();
-                                if (data.success) {
-                                    messageElement.textContent = `Code ${hashToRevoke.substring(0, 8)} revoked successfully!`;
-                                    messageElement.className = 'mt-4 text-center text-sm text-green-500';
-                                    await fetchActiveCodes(); // Refresh list
-                                } else {
-                                    throw new Error(data.message || 'Unknown error during revocation.');
-                                }
-
-                            } catch (error) {
-                                console.error('Error revoking code:', error);
-                                messageElement.textContent = `Error: ${error.message}`;
-                                messageElement.className = 'mt-4 text-center text-sm text-red-500';
-                            }
-                        });
-                    });
-
-                } catch (error) {
-                    console.error('Error fetching active codes:', error);
-                    activeCodesList.innerHTML = `<p class="text-red-400 text-center">Error loading codes: ${error.message}. Ensure Firestore rules permit access.</p>`;
+            try {
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                const userDoc = await getDoc(getUserDocRef(userCredential.user.uid));
+                if (userDoc.exists()) {
+                    await handleSuccessfulLogin(userCredential.user);
+                } else {
+                    await signOut(auth);
+                    showMessage(messageDivs.login, 'Account record is incomplete. Please sign up again or contact support.');
                 }
-            }
-
-            // Initial load of active codes
-            // We need to wait for Firebase Auth to be ready.
-            if (typeof firebase !== 'undefined' && firebase.auth()) {
-                firebase.auth().onAuthStateChanged(user => {
-                    if (user) {
-                        fetchActiveCodes();
-                    } else {
-                        activeCodesList.innerHTML = '<p class="text-custom-light-gray text-center">Sign in to manage your codes.</p>';
-                        manageCodesSection.classList.remove('hidden');
-                    }
-                });
-            } else {
-                activeCodesList.innerHTML = '<p class="text-red-400 text-center">Firebase Auth not available. Cannot manage codes.</p>';
-                manageCodesSection.classList.remove('hidden');
+            } catch (error) {
+                let msg = 'Invalid email or password.';
+                if (error.code === 'auth/too-many-requests') msg = 'Access temporarily disabled due to too many failed login attempts.';
+                else if (error.code === 'auth/user-disabled') msg = 'Your account has been disabled.';
+                showMessage(messageDivs.login, msg);
             }
         });
-    </script>
+
+        // Password Reset Form
+        document.getElementById('resetPasswordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('resetEmail').value.trim();
+            if (!email) { showMessage(messageDivs.reset, 'Please enter your email.'); return; }
+
+            try {
+                const methods = await fetchSignInMethodsForEmail(auth, email);
+                if (methods.length === 0) {
+                    showMessage(messageDivs.reset, 'No account found with this email.');
+                } else if (methods.some(m => m !== 'password')) {
+                    showMessage(messageDivs.reset, 'This account uses a social provider and does not have a password to reset.');
+                } else {
+                    await sendPasswordResetEmail(auth, email);
+                    showMessage(messageDivs.reset, 'Password reset link sent! Check your inbox.', 'success');
+                }
+            } catch (error) {
+                showMessage(messageDivs.reset, 'An error occurred. Please check the email and try again.');
+            }
+        });
+
+        // Signup Step 1: Username Form
+        document.getElementById('usernameForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('signupUsername').value.trim();
+            if (username.length < 6 || username.length > 24) { showMessage(messageDivs.username, 'Username must be 6-24 characters.'); return; }
+            if (!/^[a-zA-Z0-9.,\-+_!?\\]+$/.test(username)) { showMessage(messageDivs.username, 'Username contains invalid characters.'); return; }
+
+            showMessage(messageDivs.username, 'Checking username...', 'warning');
+            if (await checkProfanity(username)) { showMessage(messageDivs.username, 'This username is not allowed. Please choose another.'); return; }
+            if (await isUsernameTaken(username)) { showMessage(messageDivs.username, 'This username is already taken.'); return; }
+
+            selectedUsername = username;
+            showView('signup');
+            document.getElementById('signupEmail').focus();
+        });
+
+        // Signup Step 2: Credentials Form
+        document.getElementById('signupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('signupEmail').value.trim();
+            const password = document.getElementById('signupPassword').value;
+
+            const emailError = validateEmail(email);
+            if (emailError) { showMessage(messageDivs.signup, emailError); return; }
+            
+            const passwordError = validatePassword(password);
+            if (passwordError) { showMessage(messageDivs.signup, passwordError); return; }
+
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                await sendEmailVerification(userCredential.user);
+                const docCreated = await createUserDocument(userCredential.user, 'email', selectedUsername);
+
+                if (docCreated) {
+                    await signOut(auth);
+                    showMessage(messageDivs.signup, `Success! A verification email has been sent to ${email}. You can now log in.`, 'success');
+                } else {
+                    await userCredential.user.delete();
+                    showMessage(messageDivs.signup, 'Failed to create user record. Please try again.');
+                }
+            } catch (error) {
+                let msg = 'An unknown error occurred.';
+                if (error.code === 'auth/operation-not-allowed') {
+                    msg = 'Email/Password sign-in is not enabled in your Firebase project settings. Please check your console.';
+                } else if (error.code === 'auth/email-already-in-use') {
+                    msg = 'This email is already in use. If you used a social provider, please sign in with that instead.';
+                } else if (error.code === 'auth/invalid-email') {
+                    msg = 'The email address is not valid.';
+                } else if (error.code === 'auth/weak-password') {
+                    msg = 'Password is too weak. Please ensure it meets all complexity requirements.';
+                }
+                showMessage(messageDivs.signup, msg);
+                console.error("Firebase Auth Error:", error.code, error.message);
+            }
+        });
+
+        // --- Social Authentication Handler (Unified for Login & Signup) ---
+        const handleSocialAuth = async (provider) => {
+            try {
+                const result = await signInWithPopup(auth, provider);
+                const user = result.user;
+                const additionalInfo = getAdditionalUserInfo(result);
+                const userDoc = await getDoc(getUserDocRef(user.uid));
+                const providerName = provider.providerId.split('.')[0];
+
+                if (userDoc.exists()) {
+                    await handleSuccessfulLogin(user);
+                } else {
+                    let rawUsername = additionalInfo?.username || user.displayName || user.email.split('@')[0] || 'User';
+                    let username = rawUsername.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16);
+                    if (username.length < 6) username = `User${user.uid.substring(0, 8)}`;
+                    if (await checkProfanity(username)) username = `User${user.uid.substring(0, 8)}`;
+                    
+                    let finalUsername = username;
+                    let counter = 1;
+                    while (await isUsernameTaken(finalUsername)) {
+                        finalUsername = `${username.slice(0, 14)}_${counter++}`;
+                    }
+
+                    const docCreated = await createUserDocument(user, providerName, finalUsername);
+                    if (docCreated) {
+                        await setPersistence(auth, browserLocalPersistence);
+                        showView('codeGen'); // Show code generation after successful social login
+                    } else {
+                        throw new Error('Failed to create user document for social auth.');
+                    }
+                }
+            } catch (error) {
+                let msg = `A problem occurred during social sign-in.`;
+                if (error.code === 'auth/account-exists-with-different-credential') {
+                    msg = 'An account with this email already exists using a different sign-in method. Please sign in with the provider you originally used.';
+                } else if (error.code === 'auth/popup-closed-by-user') {
+                    return; 
+                }
+                const visibleMessageDiv = messageDivs.login.offsetParent ? messageDivs.login : messageDivs.username;
+                showMessage(visibleMessageDiv, msg);
+            }
+        };
+
+        document.getElementById('googleAuthBtn').addEventListener('click', () => handleSocialAuth(new GoogleAuthProvider()));
+        document.getElementById('microsoftAuthBtn').addEventListener('click', () => handleSocialAuth(new OAuthProvider('microsoft.com')));
+        document.getElementById('githubAuthBtn').addEventListener('click', () => handleSocialAuth(new GithubAuthProvider()));
+        document.getElementById('twitterAuthBtn').addEventListener('click', () => handleSocialAuth(new TwitterAuthProvider()));
+        
+        // --- Code Generation UI Listeners ---
+        document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
+        
+        document.getElementById('generate-code-btn').addEventListener('click', async () => {
+            if (!currentUser) return;
+            const newCode = '4SP-' + Array(10).fill(0).map(() => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.charAt(Math.random() * 36)).join('');
+            await updateDoc(doc(db, "users", currentUser.uid), {
+                code: newCode,
+                lastGeneratedAt: serverTimestamp()
+            });
+            showMessage(messageDivs.codeGen, 'New code generated!', 'success');
+        });
+
+        document.getElementById('unlink-code-btn').addEventListener('click', async () => {
+            if (!currentUser) return;
+            if (confirm("Are you sure?")) {
+                await updateDoc(doc(db, "users", currentUser.uid), { code: null });
+                showMessage(messageDivs.codeGen, 'Code unlinked.', 'success');
+            }
+        });
+
+        document.getElementById('copy-code-btn').addEventListener('click', () => {
+            const code = document.getElementById('current-code').textContent.trim();
+            if (code && code !== 'None') {
+                navigator.clipboard.writeText(code);
+                showMessage(messageDivs.codeGen, 'Code copied!', 'success');
+            }
+        });
+    });
+</script>
 </body>
 </html>
