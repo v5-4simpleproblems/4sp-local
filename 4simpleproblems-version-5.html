@@ -1587,8 +1587,7 @@ let db;
                         window._LOCAL_MODE = true;
                         window._USER_DOC_ID = "${currentUserDocId}";
                         window._USER_DATA = ${JSON.stringify(userData)};
-                        window.embeddedPageIdentification = ${pageConfigContent};
-                        window.embeddedThemes = ${JSON.stringify(themes)};
+                        window.FIREBASE_CONFIG = ${JSON.stringify(FIREBASE_CONFIG)};
                         
                         window.currentUser = {
                             uid: "${currentUserDocId}",
@@ -1619,6 +1618,7 @@ let db;
 
                 const navScriptTag = `<script>${navScript}<\/script>`;
                 html = html.replace('window.location.replace(redirectPath);', 'console.log("Redirect blocked by local client");');
+                html = html.replace(/<script\s+src=["']\.\.\/injector\.js["']><\/script>/, '<!-- injector.js blocked by client -->');
                 html = html.replace(/<script\s+src=["']\.\.\/navigation\.js["']><\/script>/, navScriptTag);
                 if (!html.includes(navScriptTag)) html = html.replace('</body>', `${navScriptTag}</body>`);
                 html = html.replace('<head>', `<head>${baseTag}${setupScript}`);
