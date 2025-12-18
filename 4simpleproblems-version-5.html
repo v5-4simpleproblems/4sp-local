@@ -266,6 +266,7 @@
                 `;
 
                 const navScriptTag = `<script>${navScript}<\/script>`;
+                html = html.replace('window.location.replace(redirectPath);', 'console.log("Redirect blocked by local client");');
                 html = html.replace(/<script\s+src=["']\.\.\/navigation\.js["']><\/script>/, navScriptTag);
                 if (!html.includes(navScriptTag)) html = html.replace('</body>', `${navScriptTag}</body>`);
                 html = html.replace('<head>', `<head>${baseTag}${setupScript}`);
