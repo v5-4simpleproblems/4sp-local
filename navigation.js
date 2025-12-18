@@ -255,102 +255,26 @@ let db;
         // --- NEW: Apply Counter Zoom immediately on creation ---
         applyCounterZoom();
 
-        // Global variables `allPages`, `currentUser`, `currentUserData`, `currentIsPrivileged`, `isRedirecting` are used.
-        // Their initial state is handled by their global declarations.
-
+        let pages = {};
         await loadCSS("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css");
         
         try {
             const response = await fetch(PAGE_CONFIG_URL);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            allPages = await response.json(); // Assign to global allPages
+            pages = await response.json();
         } catch (error) {
             console.error("Failed to load page identification config:", error);
-            allPages = { 'home': { name: "Home", url: "../index.html", icon: "fa-solid fa-house" } };
+            pages = { 'home': { name: "Home", url: "../index.html", icon: "fa-solid fa-house" } };
         }
 
         try {
             await loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js");
-            await loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"); // Auth SDK re-added
+            await loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js");
             await loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js");
-            
-            let app;
-            if (!firebase.apps.length) {
-                app = firebase.initializeApp(firebaseConfig);
-            } else {
-                app = firebase.app(); // if already initialized, use that app
-            }
-            auth = firebase.auth(); // Auth SDK re-enabled
-            db = firebase.firestore();
-
-            // --- LOCAL AUTH LOGIC ---
-            const localUid = localStorage.getItem('4sp_uid');
-            const localEmail = localStorage.getItem('4sp_email');
-
-            let userFromLocalStorage = null; // Use a temporary variable for initial local storage check
-            if (localUid) {
-                userFromLocalStorage = {
-                    uid: localUid,
-                    email: localEmail || 'local-user',
-                    displayName: 'Local User',
-                    providerData: []
-                };
-            }
-            currentUser = userFromLocalStorage; // Assign to global currentUser
-
-            let isPrivilegedUserLocal = false; // Temporary variable
-            let userDataLocal = null; // Temporary variable
-            
-            if (currentUser) {
-                // Check if hardcoded privileged email
-                isPrivilegedUserLocal = currentUser.email === PRIVILEGED_EMAIL;
-
-                try {
-                    // Fetch user data and check admin status in parallel
-                    const userDocPromise = db.collection('users').doc(currentUser.uid).get();
-                    const adminDocPromise = db.collection('admins').doc(currentUser.uid).get();
-
-                    const [userDoc, adminDoc] = await Promise.all([userDocPromise, adminDocPromise]);
-                    
-                    userDataLocal = userDoc.exists ? userDoc.data() : null;
-
-                    // If not already privileged via email, check if they are in the admins collection
-                    if (!isPrivilegedUserLocal && adminDoc.exists) {
-                        isPrivilegedUserLocal = true;
-                    }
-
-                } catch (error) {
-                    console.error("Error fetching user or admin data:", error);
-                }
-            }
-            currentUserData = userDataLocal; // Assign to global currentUserData
-            currentIsPrivileged = isPrivilegedUserLocal; // Assign to global currentIsPrivileged
-
-            // --- NEW: Apply Theme from Firestore ---
-            if (currentUserData && currentUserData.navbarTheme) {
-                window.applyTheme(currentUserData.navbarTheme);
-                // Sync to local storage for future page loads
-                localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(currentUserData.navbarTheme));
-            }
-            // ---------------------------------------
-
-            renderNavbar(currentUser, currentUserData, allPages, currentIsPrivileged);
-
-            // Redirect if not logged in and not on authentication page
-            const isAuthPage = window.location.pathname.endsWith('authentication.html');
-            if (!currentUser && !isAuthPage && !isRedirecting) {
-                 // Check if we are in local file or hosted
-                 // For now, redirect to authentication.html relative
-                 // But be careful about loops
-                 if (!window.location.pathname.includes('/web-files/')) {
-                      console.log("No local session. Redirecting to auth.");
-                      isRedirecting = true;
-                      window.location.href = '../authentication.html';
-                 }
-            }
+            initializeApp(pages, FIREBASE_CONFIG);
         } catch (error) {
             console.error("Failed to load core Firebase SDKs:", error);
-            renderNavbar(null, null, allPages, false); // Use global allPages
+            renderNavbar(null, null, pages, false);
         }
     };
 
@@ -477,37 +401,58 @@ let db;
             @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         `;
         document.head.appendChild(style);
-        };
-    
-        /**
-         * NEW FUNCTION: applyCounterZoom
-         * This calculates the browser's current zoom level (devicePixelRatio) and applies
-         * an inverse scale transform to the navbar. This forces the navbar to appear the
-         * same physical size regardless of zoom.
-         */
-        const applyCounterZoom = () => {
-            const navbar = document.querySelector('.auth-navbar');
-            if (!navbar) return;
-    
-            // Get the current zoom ratio (e.g., 1.25 for 125% zoom)
-            // Default to 1 if undefined
-            const dpr = window.devicePixelRatio || 1;
-    
-            // Calculate inverse scale (e.g., 0.8 for 125% zoom)
-            const scale = 1 / dpr;
-    
-            // Apply scale.
-            // We use transform instead of 'zoom' property for better cross-browser support (Firefox)
-            navbar.style.transform = `scale(${scale})`;
-            
-            // Compensate Width:
-            // If we scale down to 0.5, the 100% width becomes 50% of screen.
-            // We need to double the width to fill the screen again.
-            navbar.style.width = `${dpr * 100}%`;
-        };
-    
-        // Global state variables for the navbar (moved from initializeApp)
-        let allPages = {};
+    };
+
+    /**
+     * NEW FUNCTION: applyCounterZoom
+     * This calculates the browser's current zoom level (devicePixelRatio) and applies
+     * an inverse scale transform to the navbar. This forces the navbar to appear the
+     * same physical size regardless of zoom.
+     */
+    const applyCounterZoom = () => {
+        const navbar = document.querySelector('.auth-navbar');
+        if (!navbar) return;
+
+        // Get the current zoom ratio (e.g., 1.25 for 125% zoom)
+        // Default to 1 if undefined
+        const dpr = window.devicePixelRatio || 1;
+
+        // Calculate inverse scale (e.g., 0.8 for 125% zoom)
+        const scale = 1 / dpr;
+
+        // Apply scale.
+        // We use transform instead of 'zoom' property for better cross-browser support (Firefox)
+        navbar.style.transform = `scale(${scale})`;
+        
+        // Compensate Width:
+        // If we scale down to 0.5, the 100% width becomes 50% of screen.
+        // We need to double the width to fill the screen again.
+        navbar.style.width = `${dpr * 100}%`;
+    };
+
+    const initializeApp = (pages, firebaseConfig) => {
+        if (!document.getElementById('navbar-container')) {
+            const navbarDiv = document.createElement('div');
+            navbarDiv.id = 'navbar-container';
+            document.body.prepend(navbarDiv);
+        }
+        
+        injectStyles();
+        
+        let savedTheme;
+        try {
+            savedTheme = JSON.parse(localStorage.getItem(THEME_STORAGE_KEY));
+        } catch (e) {
+            savedTheme = null;
+            console.warn("Could not parse saved theme from Local Storage.");
+        }
+        window.applyTheme(savedTheme || DEFAULT_THEME); 
+
+        const app = firebase.initializeApp(firebaseConfig);
+        auth = firebase.auth();
+        db = firebase.firestore();
+
+        let allPages = pages;
         let currentUser = null;
         let currentUserData = null;
         let currentIsPrivileged = false;
@@ -516,16 +461,16 @@ let db;
         let globalClickListenerAdded = false;
         let authCheckCompleted = false; // <--- NEW FLAG
         let isRedirecting = false;    // <--- NEW FLAG
-    
+
         const PINNED_PAGE_KEY = 'navbar_pinnedPage';
         const PIN_BUTTON_HIDDEN_KEY = 'navbar_pinButtonHidden';
         const PIN_HINT_SHOWN_KEY = 'navbar_pinHintShown';
-    
+
         const getCurrentPageKey = () => {
             const currentPathname = window.location.pathname.toLowerCase();
             let bestMatchKey = null;
             let longestMatchLength = 0; // Track the length of the matched canonical URL
-    
+
             const cleanPath = (path) => {
                 try {
                     // If it's a relative path, resolve it against origin
@@ -538,21 +483,21 @@ let db;
                     return path; // Fallback for invalid URLs
                 }
             };
-    
+
             const currentCanonical = cleanPath(currentPathname);
             
             // Collect all matching keys along with their canonical URLs
             const potentialMatches = [];
-    
+
             for (const [key, page] of Object.entries(allPages)) {
                 const tabCanonical = cleanPath(page.url);
                 let isMatch = false;
-    
+
                 // 1. Check primary URL
                 if (currentCanonical === tabCanonical) {
                     isMatch = true;
                 }
-    
+
                 // 2. Check suffix matching (existing logic)
                 // This is less reliable for full path differentiation, but kept for compatibility
                 const tabPathSuffix = new URL(page.url, window.location.origin).pathname.toLowerCase();
@@ -561,7 +506,7 @@ let db;
                 if (!isMatch && tabSuffixClean.length > 3 && currentPathname.endsWith(tabSuffixClean)) {
                     isMatch = true;
                 }
-    
+
                 // 3. Check Aliases (NEW)
                 if (!isMatch && page.aliases && Array.isArray(page.aliases)) {
                     for (const alias of page.aliases) {
@@ -572,28 +517,28 @@ let db;
                         }
                         // Also check alias suffixes if needed, though exact path matching is safer
                         const aliasPathSuffix = new URL(alias, window.location.origin).pathname.toLowerCase();
-                         const aliasSuffixClean = aliasPathSuffix.startsWith('/') ? aliasPathPath.substring(1) : aliasPathSuffix;
+                         const aliasSuffixClean = aliasPathSuffix.startsWith('/') ? aliasPathSuffix.substring(1) : aliasPathSuffix;
                         if (aliasSuffixClean.length > 3 && currentPathname.endsWith(aliasSuffixClean)) {
                             isMatch = true;
                             break;
                         }
                     }
                 }
-    
+
                 if (isMatch) {
                     potentialMatches.push({ key, canonicalUrl: tabCanonical });
                 }
             }
-    
+
             // From potential matches, find the one with the longest canonical URL (most specific)
             if (potentialMatches.length > 0) {
                 potentialMatches.sort((a, b) => b.canonicalUrl.length - a.canonicalUrl.length);
                 return potentialMatches[0].key;
             }
-    
+
             return null; // No match found
         };
-    
+
         
         const getPinButtonHtml = () => {
             const pinnedPageKey = localStorage.getItem(PINNED_PAGE_KEY);
@@ -601,13 +546,13 @@ let db;
             const currentPageKey = getCurrentPageKey();
             const pages = allPages;
             const pinnedPageData = (pinnedPageKey && pages[pinnedPageKey]) ? pages[pinnedPageKey] : null;
-    
+
             if (isPinButtonHidden) return '';
             
             const pinButtonIcon = pinnedPageData ? getIconClass(pinnedPageData.icon) : 'fa-solid fa-map-pin';
             const pinButtonUrl = pinnedPageData ? pinnedPageData.url : '#'; 
             const pinButtonTitle = pinnedPageData ? `Go to ${pinnedPageData.name}` : 'Pin current page';
-    
+
             const shouldShowRepin = (pinnedPageKey && pinnedPageKey !== currentPageKey) || (!pinnedPageKey && currentPageKey);
             
             const repinOption = shouldShowRepin
@@ -617,7 +562,7 @@ let db;
             const removeOrHideOption = pinnedPageData 
                 ? `<button id="remove-pin-button" class="auth-menu-link text-red-400 hover:text-red-300"><i class="fa-solid fa-xmark w-4"></i>Remove Pin</button>`
                 : `<button id="hide-pin-button" class="auth-menu-link text-red-400 hover:text-red-300"><i class="fa-solid fa-eye-slash w-4"></i>Hide Button</button>`;
-    
+
             return `
                 <div id="pin-area-wrapper" class="relative flex-shrink-0 flex items-center">
                     <a href="${pinButtonUrl}" id="pin-button" class="w-10 h-10 rounded-full border flex items-center justify-center hover:bg-gray-700 transition" title="${pinButtonTitle}">
@@ -633,7 +578,7 @@ let db;
                 </div>
             `;
         }
-    
+
         const updatePinButtonArea = () => {
             const pinWrapper = document.getElementById('pin-area-wrapper');
             const newPinHtml = getPinButtonHtml();
@@ -654,7 +599,7 @@ let db;
             document.getElementById('auth-menu-container')?.classList.add('closed');
             document.getElementById('auth-menu-container')?.classList.remove('open');
         };
-    
+
         const hexToRgb = (hex) => {
             if (!hex || typeof hex !== 'string') return null;
             let c = hex.substring(1); 
@@ -663,7 +608,7 @@ let db;
             const num = parseInt(c, 16);
             return { r: (num >> 16) & 0xFF, g: (num >> 8) & 0xFF, b: (num >> 0) & 0xFF };
         };
-    
+
         const getLuminance = (rgb) => {
             if (!rgb) return 0;
             const a = [rgb.r, rgb.g, rgb.b].map(v => {
@@ -672,7 +617,7 @@ let db;
             });
             return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
         };
-    
+
         const getLetterAvatarTextColor = (gradientBg) => {
             if (!gradientBg) return '#FFFFFF'; 
             const match = gradientBg.match(/#([0-9a-fA-F]{3}){1,2}/);
@@ -691,12 +636,12 @@ let db;
                 return '#FFFFFF';
             }
         };
-    
+
         const getAuthControlsHtml = () => {
             const user = currentUser;
             const userData = currentUserData;
             const pinButtonHtml = getPinButtonHtml();
-    
+
             const loggedOutView = `
                 <div id="auth-button-container" class="relative flex-shrink-0 flex items-center">
                     <button id="auth-toggle" class="w-10 h-10 rounded-full border flex items-center justify-center hover:bg-gray-700 transition logged-out-auth-toggle">
@@ -728,14 +673,14 @@ let db;
                     </div>
                 </div>
             `;
-    
+
             const loggedInView = (user, userData) => {
                 const username = userData?.username || user.displayName || 'User';
                 const email = user.email || 'No email';
                 const initial = (userData?.letterAvatarText || username.charAt(0)).toUpperCase();
                 let avatarHtml = '';
                 const pfpType = userData?.pfpType || 'google'; 
-    
+
                 if (pfpType === 'custom' && userData?.customPfp) {
                     avatarHtml = `<img src="${userData.customPfp}" class="w-full h-full object-cover rounded-full" alt="Profile">`;
                 } else if (pfpType === 'mibi' && userData?.mibiConfig) {
@@ -764,7 +709,7 @@ let db;
                     const googleProvider = user.providerData.find(p => p.providerId === 'google.com');
                     const googlePhoto = googleProvider ? googleProvider.photoURL : null;
                     const displayPhoto = googlePhoto || user.photoURL;
-    
+
                     if (displayPhoto) {
                         avatarHtml = `<img src="${displayPhoto}" class="w-full h-full object-cover rounded-full" alt="Profile">`;
                     } else {
@@ -827,17 +772,17 @@ let db;
                     </div>
                 `;
             };
-    
+
             return `
                 ${pinButtonHtml}
                 ${user ? loggedInView(user, userData) : loggedOutView}
             `;
         }
-    
+
         const setupAuthToggleListeners = (user) => {
             const toggleButton = document.getElementById('auth-toggle');
             const menu = document.getElementById('auth-menu-container');
-    
+
             if (toggleButton && menu) {
                 toggleButton.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -848,12 +793,12 @@ let db;
                     if (menu.classList.contains('open')) checkMarquees();
                 });
             }
-    
+
             const moreButton = document.getElementById('more-button');
             const moreSection = document.getElementById('more-section');
             const moreButtonIcon = document.getElementById('more-button-icon');
             const moreButtonText = document.getElementById('more-button-text');
-    
+
             if (moreButton && moreSection) {
                 moreButton.addEventListener('click', () => {
                     const isExpanded = moreSection.style.display === 'block';
@@ -863,7 +808,7 @@ let db;
                     moreButtonIcon.classList.toggle('fa-chevron-up', !isExpanded);
                 });
             }
-    
+
             const showPinButton = document.getElementById('show-pin-button');
             if (showPinButton) {
                 showPinButton.addEventListener('click', () => {
@@ -871,20 +816,17 @@ let db;
                     updateAuthControlsArea();
                 });
             }
-    
+
             if (user) {
                 const logoutButton = document.getElementById('logout-button');
                 if (logoutButton) {
                     logoutButton.addEventListener('click', () => {
-                        localStorage.removeItem('4sp_uid');
-                        localStorage.removeItem('4sp_email');
-                        localStorage.removeItem('device_fingerprint');
-                        window.location.href = '/authentication.html';
+                        auth.signOut().catch(err => console.error("Logout failed:", err));
                     });
                 }
             }
         };
-    
+
         const updateAuthControlsArea = () => {
             const authWrapper = document.getElementById('auth-controls-wrapper');
             if (!authWrapper) return;
@@ -892,7 +834,7 @@ let db;
             setupPinEventListeners();
             setupAuthToggleListeners(currentUser); 
         }
-    
+
         const checkMarquees = () => {
             requestAnimationFrame(() => {
                 const containers = document.querySelectorAll('.marquee-container');
@@ -916,361 +858,424 @@ let db;
                 });
             });
         };
-    
+
         const rerenderNavbar = (preserveScroll = false) => {
-                 if (preserveScroll) {
-                    const tabContainer = document.querySelector('.tab-scroll-container');
-                    if (tabContainer) {
-                        currentScrollLeft = tabContainer.scrollLeft;
-                    } else {
-                        currentScrollLeft = 0;
-                    }
-                }
-                renderNavbar(currentUser, currentUserData, allPages, currentIsPrivileged);
-            };
-    
-            const renderNavbar = (user, userData, pages, isPrivilegedUser) => {
-                const container = document.getElementById('navbar-container');
-                if (!container) return; 
-    
-                const navElement = container.querySelector('nav');
-                const tabWrapper = navElement.querySelector('.tab-wrapper');
-                const authControlsWrapper = document.getElementById('auth-controls-wrapper');
-                const navbarLogo = document.getElementById('navbar-logo');
-    
-                const logoPath = DEFAULT_THEME['logo-src']; 
-                if (navbarLogo) navbarLogo.src = logoPath;
-                
-                // Determine the single active page key first
-                const activePageKey = getCurrentPageKey();
-    
-                const tabsHtml = Object.entries(pages || {})
-                    .filter(([, page]) => !(page.adminOnly && !isPrivilegedUser)) 
-                    .map(([key, page]) => { // Get key and page from entry
-                        const isActive = (key === activePageKey); // Compare with the single activePageKey
-                        const activeClass = isActive ? 'active' : '';
-                        const iconClasses = getIconClass(page.icon);
-                        return `<a href="${page.url}" class="nav-tab ${activeClass}"><i class="${iconClasses} mr-2"></i>${page.name}</a>`;
-                    }).join('');
-    
-                const authControlsHtml = getAuthControlsHtml();
-    
-                if (tabWrapper) {
-                    tabWrapper.innerHTML = `
-                        <button id="glide-left" class="scroll-glide-button"><i class="fa-solid fa-chevron-left"></i></button>
-                        <div class="tab-scroll-container">
-                            ${tabsHtml}
-                        </div>
-                        <button id="glide-right" class="scroll-glide-button"><i class="fa-solid fa-chevron-right"></i></button>
-                    `;
-                }
-    
-                if (authControlsWrapper) {
-                    authControlsWrapper.innerHTML = authControlsHtml;
-                }
-                
-                const tabContainer = tabWrapper.querySelector('.tab-scroll-container'); 
-                const tabCount = tabContainer ? tabContainer.querySelectorAll('.nav-tab').length : 0;
-    
-                if (tabCount <= 9) {
-                    if(tabContainer) {
-                        tabContainer.style.justifyContent = 'center';
-                        tabContainer.style.overflowX = 'hidden';
-                        tabContainer.style.flexGrow = '0';
-                    }
-                } else {
-                    if(tabContainer) {
-                        tabContainer.style.justifyContent = 'flex-start';
-                        tabContainer.style.overflowX = 'auto';
-                        tabContainer.style.flexGrow = '1';
-                    }
-                }
-    
-                setupEventListeners(user);
-    
-                let savedTheme;
-                try {
-                    savedTheme = JSON.parse(localStorage.getItem(THEME_STORAGE_KEY));
-                } catch (e) { savedTheme = null; }
-                window.applyTheme(savedTheme || DEFAULT_THEME); 
-    
-                if (currentScrollLeft > 0) {
-                    const savedScroll = currentScrollLeft;
-                    requestAnimationFrame(() => {
-                        if (tabContainer) tabContainer.scrollLeft = savedScroll;
-                        currentScrollLeft = 0; 
-                        requestAnimationFrame(() => {
-                            updateScrollGilders();
-                        });
-                    });
-                } else if (!hasScrolledToActiveTab) { 
-                    const activeTab = document.querySelector('.nav-tab.active');
-                    if (activeTab && tabContainer) {
-                        const centerOffset = (tabContainer.offsetWidth - activeTab.offsetWidth) / 2;
-                        const idealCenterScroll = activeTab.offsetLeft - centerOffset;
-                        const maxScroll = tabContainer.scrollWidth - tabContainer.offsetWidth;
-                        const extraRoomOnRight = maxScroll - idealCenterScroll;
-                        let scrollTarget;
-    
-                        if (idealCenterScroll > 0 && extraRoomOnRight < centerOffset) {
-                            scrollTarget = maxScroll + 50;
-                        } else {
-                            scrollTarget = Math.max(0, idealCenterScroll);
-                        }
-                        requestAnimationFrame(() => {
-                            tabContainer.scrollLeft = scrollTarget;
-                            requestAnimationFrame(() => {
-                                updateScrollGilders();
-                            });
-                        });
-                        hasScrolledToActiveTab = true; 
-                    } else if (tabContainer) {
-                        requestAnimationFrame(() => {
-                            updateScrollGilders();
-                        });
-                    }
-                }
-                
-                checkMarquees();
-            };
-    
-            const updateScrollGilders = () => {
-                const container = document.querySelector('.tab-scroll-container');
-                const leftButton = document.getElementById('glide-left');
-                const rightButton = document.getElementById('glide-right');
-                const tabCount = document.querySelectorAll('.nav-tab').length;
-                const isNotScrolling = container && container.style.flexGrow === '0';
-                
-                if (tabCount <= 9 || isNotScrolling) {
-                    if (leftButton) leftButton.classList.add('hidden');
-                    if (rightButton) rightButton.classList.add('hidden');
-                    return; 
-                }
-    
-                if (!container || !leftButton || !rightButton) return;
-                const hasHorizontalOverflow = container.scrollWidth > container.offsetWidth + 2; 
-    
-                if (hasHorizontalOverflow) {
-                    const isScrolledToLeft = container.scrollLeft <= 5;
-                    const maxScrollLeft = container.scrollWidth - container.offsetWidth;
-                    const isScrolledToRight = (container.scrollLeft + 5) >= maxScrollLeft;
-    
-                    if (isScrolledToLeft) {
-                        leftButton.classList.add('hidden');
-                    } else {
-                        leftButton.classList.remove('hidden');
-                    }
-    
-                    if (isScrolledToRight) {
-                        rightButton.classList.add('hidden');
-                    } else {
-                        rightButton.classList.remove('hidden');
-                    }
-                } else {
-                    leftButton.classList.add('hidden');
-                    rightButton.classList.add('hidden');
-                }
-            };
-    
-            const forceScrollToRight = () => {
+             if (preserveScroll) {
                 const tabContainer = document.querySelector('.tab-scroll-container');
-                if (!tabContainer) return;
-                const maxScroll = tabContainer.scrollWidth - tabContainer.offsetWidth;
+                if (tabContainer) {
+                    currentScrollLeft = tabContainer.scrollLeft;
+                } else {
+                    currentScrollLeft = 0;
+                }
+            }
+            renderNavbar(currentUser, currentUserData, allPages, currentIsPrivileged);
+        };
+
+        const renderNavbar = (user, userData, pages, isPrivilegedUser) => {
+            const container = document.getElementById('navbar-container');
+            if (!container) return; 
+
+            const navElement = container.querySelector('nav');
+            const tabWrapper = navElement.querySelector('.tab-wrapper');
+            const authControlsWrapper = document.getElementById('auth-controls-wrapper');
+            const navbarLogo = document.getElementById('navbar-logo');
+
+            const logoPath = DEFAULT_THEME['logo-src']; 
+            if (navbarLogo) navbarLogo.src = logoPath;
+            
+            // Determine the single active page key first
+            const activePageKey = getCurrentPageKey();
+
+            const tabsHtml = Object.entries(pages || {})
+                .filter(([, page]) => !(page.adminOnly && !isPrivilegedUser)) 
+                .map(([key, page]) => { // Get key and page from entry
+                    const isActive = (key === activePageKey); // Compare with the single activePageKey
+                    const activeClass = isActive ? 'active' : '';
+                    const iconClasses = getIconClass(page.icon);
+                    return `<a href="${page.url}" class="nav-tab ${activeClass}"><i class="${iconClasses} mr-2"></i>${page.name}</a>`;
+                }).join('');
+
+            const authControlsHtml = getAuthControlsHtml();
+
+            if (tabWrapper) {
+                tabWrapper.innerHTML = `
+                    <button id="glide-left" class="scroll-glide-button"><i class="fa-solid fa-chevron-left"></i></button>
+                    <div class="tab-scroll-container">
+                        ${tabsHtml}
+                    </div>
+                    <button id="glide-right" class="scroll-glide-button"><i class="fa-solid fa-chevron-right"></i></button>
+                `;
+            }
+
+            if (authControlsWrapper) {
+                authControlsWrapper.innerHTML = authControlsHtml;
+            }
+            
+            const tabContainer = tabWrapper.querySelector('.tab-scroll-container'); 
+            const tabCount = tabContainer ? tabContainer.querySelectorAll('.nav-tab').length : 0;
+
+            if (tabCount <= 9) {
+                if(tabContainer) {
+                    tabContainer.style.justifyContent = 'center';
+                    tabContainer.style.overflowX = 'hidden';
+                    tabContainer.style.flexGrow = '0';
+                }
+            } else {
+                if(tabContainer) {
+                    tabContainer.style.justifyContent = 'flex-start';
+                    tabContainer.style.overflowX = 'auto';
+                    tabContainer.style.flexGrow = '1';
+                }
+            }
+
+            setupEventListeners(user);
+
+            let savedTheme;
+            try {
+                savedTheme = JSON.parse(localStorage.getItem(THEME_STORAGE_KEY));
+            } catch (e) { savedTheme = null; }
+            window.applyTheme(savedTheme || DEFAULT_THEME); 
+
+            if (currentScrollLeft > 0) {
+                const savedScroll = currentScrollLeft;
                 requestAnimationFrame(() => {
-                    tabContainer.scrollLeft = maxScroll + 50;
+                    if (tabContainer) tabContainer.scrollLeft = savedScroll;
+                    currentScrollLeft = 0; 
                     requestAnimationFrame(() => {
                         updateScrollGilders();
                     });
                 });
-            };
-            
-            const setupPinEventListeners = () => {
-                const pinButton = document.getElementById('pin-button');
-                const pinContextMenu = document.getElementById('pin-context-menu');
-                const repinButton = document.getElementById('repin-button');
-                const removePinButton = document.getElementById('remove-pin-button');
-                const hidePinButton = document.getElementById('hide-pin-button');
-    
-                if (pinButton && pinContextMenu) {
-                    pinButton.addEventListener('click', (e) => {
-                        if (pinButton.getAttribute('href') === '#') {
-                            e.preventDefault(); 
-                            const hintShown = localStorage.getItem(PIN_HINT_SHOWN_KEY) === 'true';
-                            if (!hintShown) {
-                                const hintEl = document.getElementById('pin-hint');
-                                if (hintEl) {
-                                    hintEl.classList.add('show');
-                                    localStorage.setItem(PIN_HINT_SHOWN_KEY, 'true');
-                                    setTimeout(() => {
-                                        hintEl.classList.remove('show');
-                                    }, 6000); 
-                                }
-                            }
-                            const currentPageKey = getCurrentPageKey();
-                            if (currentPageKey) {
-                                localStorage.setItem(PINNED_PAGE_KEY, currentPageKey);
-                                updatePinButtonArea(); 
-                            } else {
-                                console.warn("This page cannot be pinned as it's not in page-identification.json");
-                            }
-                        }
+            } else if (!hasScrolledToActiveTab) { 
+                const activeTab = document.querySelector('.nav-tab.active');
+                if (activeTab && tabContainer) {
+                    const centerOffset = (tabContainer.offsetWidth - activeTab.offsetWidth) / 2;
+                    const idealCenterScroll = activeTab.offsetLeft - centerOffset;
+                    const maxScroll = tabContainer.scrollWidth - tabContainer.offsetWidth;
+                    const extraRoomOnRight = maxScroll - idealCenterScroll;
+                    let scrollTarget;
+
+                    if (idealCenterScroll > 0 && extraRoomOnRight < centerOffset) {
+                        scrollTarget = maxScroll + 50;
+                    } else {
+                        scrollTarget = Math.max(0, idealCenterScroll);
+                    }
+                    requestAnimationFrame(() => {
+                        tabContainer.scrollLeft = scrollTarget;
+                        requestAnimationFrame(() => {
+                            updateScrollGilders();
+                        });
                     });
-    
-                    pinButton.addEventListener('contextmenu', (e) => {
-                        e.preventDefault();
-                        pinContextMenu.classList.toggle('closed');
-                        pinContextMenu.classList.toggle('open');
-                        document.getElementById('auth-menu-container')?.classList.add('closed');
-                        document.getElementById('auth-menu-container')?.classList.remove('open');
+                    hasScrolledToActiveTab = true; 
+                } else if (tabContainer) {
+                    requestAnimationFrame(() => {
+                        updateScrollGilders();
                     });
                 }
-    
-                if (repinButton) {
-                    repinButton.addEventListener('click', () => {
+            }
+            
+            checkMarquees();
+        };
+
+        const updateScrollGilders = () => {
+            const container = document.querySelector('.tab-scroll-container');
+            const leftButton = document.getElementById('glide-left');
+            const rightButton = document.getElementById('glide-right');
+            const tabCount = document.querySelectorAll('.nav-tab').length;
+            const isNotScrolling = container && container.style.flexGrow === '0';
+            
+            if (tabCount <= 9 || isNotScrolling) {
+                if (leftButton) leftButton.classList.add('hidden');
+                if (rightButton) rightButton.classList.add('hidden');
+                return; 
+            }
+
+            if (!container || !leftButton || !rightButton) return;
+            const hasHorizontalOverflow = container.scrollWidth > container.offsetWidth + 2; 
+
+            if (hasHorizontalOverflow) {
+                const isScrolledToLeft = container.scrollLeft <= 5;
+                const maxScrollLeft = container.scrollWidth - container.offsetWidth;
+                const isScrolledToRight = (container.scrollLeft + 5) >= maxScrollLeft;
+
+                if (isScrolledToLeft) {
+                    leftButton.classList.add('hidden');
+                } else {
+                    leftButton.classList.remove('hidden');
+                }
+
+                if (isScrolledToRight) {
+                    rightButton.classList.add('hidden');
+                } else {
+                    rightButton.classList.remove('hidden');
+                }
+            } else {
+                leftButton.classList.add('hidden');
+                rightButton.classList.add('hidden');
+            }
+        };
+
+        const forceScrollToRight = () => {
+            const tabContainer = document.querySelector('.tab-scroll-container');
+            if (!tabContainer) return;
+            const maxScroll = tabContainer.scrollWidth - tabContainer.offsetWidth;
+            requestAnimationFrame(() => {
+                tabContainer.scrollLeft = maxScroll + 50;
+                requestAnimationFrame(() => {
+                    updateScrollGilders();
+                });
+            });
+        };
+        
+        const setupPinEventListeners = () => {
+            const pinButton = document.getElementById('pin-button');
+            const pinContextMenu = document.getElementById('pin-context-menu');
+            const repinButton = document.getElementById('repin-button');
+            const removePinButton = document.getElementById('remove-pin-button');
+            const hidePinButton = document.getElementById('hide-pin-button');
+
+            if (pinButton && pinContextMenu) {
+                pinButton.addEventListener('click', (e) => {
+                    if (pinButton.getAttribute('href') === '#') {
+                        e.preventDefault(); 
+                        const hintShown = localStorage.getItem(PIN_HINT_SHOWN_KEY) === 'true';
+                        if (!hintShown) {
+                            const hintEl = document.getElementById('pin-hint');
+                            if (hintEl) {
+                                hintEl.classList.add('show');
+                                localStorage.setItem(PIN_HINT_SHOWN_KEY, 'true');
+                                setTimeout(() => {
+                                    hintEl.classList.remove('show');
+                                }, 6000); 
+                            }
+                        }
                         const currentPageKey = getCurrentPageKey();
                         if (currentPageKey) {
                             localStorage.setItem(PINNED_PAGE_KEY, currentPageKey);
                             updatePinButtonArea(); 
+                        } else {
+                            console.warn("This page cannot be pinned as it's not in page-identification.json");
                         }
-                        pinContextMenu.classList.add('closed');
-                        pinContextMenu.classList.remove('open');
-                    });
-                }
-                if (removePinButton) {
-                    removePinButton.addEventListener('click', () => {
-                        localStorage.removeItem(PINNED_PAGE_KEY);
+                    }
+                });
+
+                pinButton.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    pinContextMenu.classList.toggle('closed');
+                    pinContextMenu.classList.toggle('open');
+                    document.getElementById('auth-menu-container')?.classList.add('closed');
+                    document.getElementById('auth-menu-container')?.classList.remove('open');
+                });
+            }
+
+            if (repinButton) {
+                repinButton.addEventListener('click', () => {
+                    const currentPageKey = getCurrentPageKey();
+                    if (currentPageKey) {
+                        localStorage.setItem(PINNED_PAGE_KEY, currentPageKey);
                         updatePinButtonArea(); 
+                    }
+                    pinContextMenu.classList.add('closed');
+                    pinContextMenu.classList.remove('open');
+                });
+            }
+            if (removePinButton) {
+                removePinButton.addEventListener('click', () => {
+                    localStorage.removeItem(PINNED_PAGE_KEY);
+                    updatePinButtonArea(); 
+                });
+            }
+            if (hidePinButton) {
+                hidePinButton.addEventListener('click', () => {
+                    localStorage.setItem(PIN_BUTTON_HIDDEN_KEY, 'true');
+                    updateAuthControlsArea();
+                });
+            }
+        }
+
+        const setupEventListeners = (user) => {
+            const tabContainer = document.querySelector('.tab-scroll-container');
+            const leftButton = document.getElementById('glide-left');
+            const rightButton = document.getElementById('glide-right');
+            const debouncedUpdateGilders = debounce(updateScrollGilders, 50);
+
+            if (tabContainer) {
+                const scrollAmount = tabContainer.offsetWidth * 0.8; 
+                tabContainer.addEventListener('scroll', updateScrollGilders);
+                
+                // --- MODIFIED: RESIZE EVENT ---
+                // We now trigger both glider updates AND the counter-zoom logic
+                window.addEventListener('resize', () => {
+                    debouncedUpdateGilders();
+                    applyCounterZoom(); // Re-calculate zoom scale on resize
+                });
+                // --- END MODIFICATION ---
+                
+                if (leftButton) {
+                    leftButton.addEventListener('click', () => {
+                        tabContainer.scrollLeft = 0; // Scroll to the beginning
                     });
                 }
-                if (hidePinButton) {
-                    hidePinButton.addEventListener('click', () => {
-                        localStorage.setItem(PIN_BUTTON_HIDDEN_KEY, 'true');
-                        updateAuthControlsArea();
+                if (rightButton) {
+                    rightButton.addEventListener('click', () => {
+                        const maxScroll = tabContainer.scrollWidth - tabContainer.offsetWidth;
+                        tabContainer.scrollLeft = maxScroll; // Scroll to the end
                     });
                 }
             }
-    
-            const setupEventListeners = (user) => {
-                const tabContainer = document.querySelector('.tab-scroll-container');
-                const leftButton = document.getElementById('glide-left');
-                const rightButton = document.getElementById('glide-right');
-                const debouncedUpdateGilders = debounce(updateScrollGilders, 50);
-    
-                if (tabContainer) {
-                    const scrollAmount = tabContainer.offsetWidth * 0.8; 
-                    tabContainer.addEventListener('scroll', updateScrollGilders);
+
+            setupAuthToggleListeners(user);
+            setupPinEventListeners();
+
+            if (!globalClickListenerAdded) {
+                document.addEventListener('click', (e) => {
+                    const menu = document.getElementById('auth-menu-container');
+                    const toggleButton = document.getElementById('auth-toggle');
                     
-                    // --- MODIFIED: RESIZE EVENT ---
-                    // We now trigger both glider updates AND the counter-zoom logic
-                    window.addEventListener('resize', () => {
-                        debouncedUpdateGilders();
-                        applyCounterZoom(); // Re-calculate zoom scale on resize
-                    });
-                    // --- END MODIFICATION ---
-                    
-                    if (leftButton) {
-                        leftButton.addEventListener('click', () => {
-                            tabContainer.scrollLeft = 0; // Scroll to the beginning
-                        });
-                    }
-                    if (rightButton) {
-                        rightButton.addEventListener('click', () => {
-                            const maxScroll = tabContainer.scrollWidth - tabContainer.offsetWidth;
-                            tabContainer.scrollLeft = maxScroll; // Scroll to the end
-                        });
-                    }
-                }
-    
-                setupAuthToggleListeners(user);
-                setupPinEventListeners();
-    
-                if (!globalClickListenerAdded) {
-                    document.addEventListener('click', (e) => {
-                        const menu = document.getElementById('auth-menu-container');
-                        const toggleButton = document.getElementById('auth-toggle');
-                        
-                        if (menu && menu.classList.contains('open')) {
-                            if (!menu.contains(e.target) && (toggleButton && !toggleButton.contains(e.target))) {
-                                menu.classList.add('closed');
-                                menu.classList.remove('open');
-                            }
+                    if (menu && menu.classList.contains('open')) {
+                        if (!menu.contains(e.target) && (toggleButton && !toggleButton.contains(e.target))) {
+                            menu.classList.add('closed');
+                            menu.classList.remove('open');
                         }
-                        
-                        const pinButton = document.getElementById('pin-button');
-                        const pinContextMenu = document.getElementById('pin-context-menu');
-    
-                        if (pinContextMenu && pinContextMenu.classList.contains('open')) {
-                            if (!pinContextMenu.contains(e.target) && (pinButton && !pinButton.contains(e.target))) {
-                                pinContextMenu.classList.add('closed');
-                                pinContextMenu.classList.remove('open');
-                            }
-                        }
-                    });
+                    }
                     
-                    window.addEventListener('pfp-updated', (e) => {
-                        if (!currentUserData) currentUserData = {};
-                        Object.assign(currentUserData, e.detail);
-                        
-                        const username = currentUserData.username || currentUser?.displayName || 'User';
-                        const initial = (currentUserData.letterAvatarText) ? currentUserData.letterAvatarText : username.charAt(0).toUpperCase();
-                        let newContent = '';
-                        
-                        if (currentUserData.pfpType === 'custom' && currentUserData.customPfp) {
-                            newContent = `<img src="${currentUserData.customPfp}" class="w-full h-full object-cover rounded-full" alt="Profile">`;
-                        } else if (currentUserData.pfpType === 'mibi' && currentUserData.mibiConfig) {
-                            const { eyes, mouths, hats, bgColor, rotation, size, offsetX, offsetY } = currentUserData.mibiConfig;
-                            const scale = (size || 100) / 100;
-                            const rot = rotation || 0;
-                            const x = offsetX || 0;
-                            const y = offsetY || 0;
-    
-                            newContent = `
-                                <div class="w-full h-full relative overflow-hidden rounded-full" style="background-color: ${bgColor || '#3B82F6'}">
-                                     <div class="absolute inset-0 w-full h-full" style="transform: translate(${x}%, ${y}%) rotate(${rot}deg) scale(${scale}); transform-origin: center;">
-                                         <img src="/mibi-avatars/head.png" class="absolute inset-0 w-full h-full object-contain">
-                                         ${eyes ? `<img src="/mibi-avatars/eyes/${eyes}" class="absolute inset-0 w-full h-full object-contain">` : ''}
-                                         ${mouths ? `<img src="/mibi-avatars/mouths/${mouths}" class="absolute inset-0 w-full h-full object-contain">` : ''}
-                                         ${hats ? `<img src="/mibi-avatars/hats/${hats}" class="absolute inset-0 w-full h-full object-contain">` : ''}
-                                     </div>
-                                </div>
-                            `;
-                        } else if (currentUserData.pfpType === 'letter') {
-                            const bg = currentUserData.letterAvatarColor || DEFAULT_THEME['avatar-gradient'];
+                    const pinButton = document.getElementById('pin-button');
+                    const pinContextMenu = document.getElementById('pin-context-menu');
+
+                    if (pinContextMenu && pinContextMenu.classList.contains('open')) {
+                        if (!pinContextMenu.contains(e.target) && (pinButton && !pinButton.contains(e.target))) {
+                            pinContextMenu.classList.add('closed');
+                            pinContextMenu.classList.remove('open');
+                        }
+                    }
+                });
+                
+                window.addEventListener('pfp-updated', (e) => {
+                    if (!currentUserData) currentUserData = {};
+                    Object.assign(currentUserData, e.detail);
+                    
+                    const username = currentUserData.username || currentUser?.displayName || 'User';
+                    const initial = (currentUserData.letterAvatarText) ? currentUserData.letterAvatarText : username.charAt(0).toUpperCase();
+                    let newContent = '';
+                    
+                    if (currentUserData.pfpType === 'custom' && currentUserData.customPfp) {
+                        newContent = `<img src="${currentUserData.customPfp}" class="w-full h-full object-cover rounded-full" alt="Profile">`;
+                    } else if (currentUserData.pfpType === 'mibi' && currentUserData.mibiConfig) {
+                        const { eyes, mouths, hats, bgColor, rotation, size, offsetX, offsetY } = currentUserData.mibiConfig;
+                        const scale = (size || 100) / 100;
+                        const rot = rotation || 0;
+                        const x = offsetX || 0;
+                        const y = offsetY || 0;
+
+                        newContent = `
+                            <div class="w-full h-full relative overflow-hidden rounded-full" style="background-color: ${bgColor || '#3B82F6'}">
+                                 <div class="absolute inset-0 w-full h-full" style="transform: translate(${x}%, ${y}%) rotate(${rot}deg) scale(${scale}); transform-origin: center;">
+                                     <img src="/mibi-avatars/head.png" class="absolute inset-0 w-full h-full object-contain">
+                                     ${eyes ? `<img src="/mibi-avatars/eyes/${eyes}" class="absolute inset-0 w-full h-full object-contain">` : ''}
+                                     ${mouths ? `<img src="/mibi-avatars/mouths/${mouths}" class="absolute inset-0 w-full h-full object-contain">` : ''}
+                                     ${hats ? `<img src="/mibi-avatars/hats/${hats}" class="absolute inset-0 w-full h-full object-contain">` : ''}
+                                 </div>
+                            </div>
+                        `;
+                    } else if (currentUserData.pfpType === 'letter') {
+                        const bg = currentUserData.letterAvatarColor || DEFAULT_THEME['avatar-gradient'];
+                        const textColor = getLetterAvatarTextColor(bg);
+                        const fontSizeClass = initial.length >= 3 ? 'text-xs' : (initial.length === 2 ? 'text-sm' : 'text-base');
+                        newContent = `<div class="initial-avatar w-full h-full rounded-full font-semibold ${fontSizeClass}" style="background: ${bg}; color: ${textColor}">${initial}</div>`;
+                    } else {
+                        const googleProvider = currentUser?.providerData.find(p => p.providerId === 'google.com');
+                        const googlePhoto = googleProvider ? googleProvider.photoURL : null;
+                        const displayPhoto = googlePhoto || currentUser?.photoURL;
+
+                        if (displayPhoto) {
+                            newContent = `<img src="${displayPhoto}" class="w-full h-full object-cover rounded-full" alt="Profile">`;
+                        } else {
+                            const bg = DEFAULT_THEME['avatar-gradient'];
                             const textColor = getLetterAvatarTextColor(bg);
                             const fontSizeClass = initial.length >= 3 ? 'text-xs' : (initial.length === 2 ? 'text-sm' : 'text-base');
                             newContent = `<div class="initial-avatar w-full h-full rounded-full font-semibold ${fontSizeClass}" style="background: ${bg}; color: ${textColor}">${initial}</div>`;
-                        } else {
-                            const googleProvider = currentUser?.providerData.find(p => p.providerId === 'google.com');
-                            const googlePhoto = googleProvider ? googleProvider.photoURL : null;
-                            const displayPhoto = googlePhoto || currentUser?.photoURL;
-    
-                            if (displayPhoto) {
-                                newContent = `<img src="${displayPhoto}" class="w-full h-full object-cover rounded-full" alt="Profile">`;
-                            } else {
-                                const bg = DEFAULT_THEME['avatar-gradient'];
-                                const textColor = getLetterAvatarTextColor(bg);
-                                const fontSizeClass = initial.length >= 3 ? 'text-xs' : (initial.length === 2 ? 'text-sm' : 'text-base');
-                                newContent = `<div class="initial-avatar w-full h-full rounded-full font-semibold ${fontSizeClass}" style="background: ${bg}; color: ${textColor}">${initial}</div>`;
-                            }
                         }
-    
-                        const authToggle = document.getElementById('auth-toggle');
-                        if (authToggle) {
-                            authToggle.style.transition = 'opacity 0.2s ease';
-                            authToggle.style.opacity = '0';
-                            setTimeout(() => {
-                                authToggle.innerHTML = newContent;
-                                authToggle.style.opacity = '1';
-                            }, 200);
-                        }
-                        const menuAvatar = document.getElementById('auth-menu-avatar-container');
-                        if (menuAvatar) {
-                            menuAvatar.innerHTML = newContent; 
-                        }
-                    });
-    
-                    globalClickListenerAdded = true;
+                    }
+
+                    const authToggle = document.getElementById('auth-toggle');
+                    if (authToggle) {
+                        authToggle.style.transition = 'opacity 0.2s ease';
+                        authToggle.style.opacity = '0';
+                        setTimeout(() => {
+                            authToggle.innerHTML = newContent;
+                            authToggle.style.opacity = '1';
+                        }, 200);
+                    }
+                    const menuAvatar = document.getElementById('auth-menu-avatar-container');
+                    if (menuAvatar) {
+                        menuAvatar.innerHTML = newContent; 
+                    }
+                });
+
+                globalClickListenerAdded = true;
+            }
+        };
+
+        auth.onAuthStateChanged(async (user) => {
+            let isPrivilegedUser = false;
+            let userData = null;
+            if (user) {
+                // Check if hardcoded privileged email
+                isPrivilegedUser = user.email === PRIVILEGED_EMAIL;
+
+                try {
+                    // Fetch user data and check admin status in parallel
+                    const userDocPromise = db.collection('users').doc(user.uid).get();
+                    const adminDocPromise = db.collection('admins').doc(user.uid).get();
+
+                    const [userDoc, adminDoc] = await Promise.all([userDocPromise, adminDocPromise]);
+                    
+                    userData = userDoc.exists ? userDoc.data() : null;
+
+                    // If not already privileged via email, check if they are in the admins collection
+                    if (!isPrivilegedUser && adminDoc.exists) {
+                        isPrivilegedUser = true;
+                    }
+
+                } catch (error) {
+                    console.error("Error fetching user or admin data:", error);
                 }
-            };
-    
+            }
+            currentUser = user;
+            currentUserData = userData;
+
+            // --- NEW: Apply Theme from Firestore ---
+            if (userData && userData.navbarTheme) {
+                window.applyTheme(userData.navbarTheme);
+                // Sync to local storage for future page loads
+                localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(userData.navbarTheme));
+            }
+            // ---------------------------------------
+
+            currentIsPrivileged = isPrivilegedUser;
+            renderNavbar(currentUser, currentUserData, allPages, currentIsPrivileged);
+
+            // Set flag after the first check
+            if (!authCheckCompleted) {
+                authCheckCompleted = true;
+            }
+
+            // Only redirect if auth check is completed, user is logged out, and we are not already redirecting
+            // Added a check to see if we are already on a public page to avoid redirect loops
+            const isPublicPage = window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('authentication.html') || window.location.pathname === '/';
             
+            if (authCheckCompleted && !user && !isRedirecting && !isPublicPage) {
+                const targetUrl = '/index.html'; 
+                
+                console.log(`User logged out. Restricting access and redirecting to ${targetUrl}`);
+                isRedirecting = true; // Set flag to prevent multiple redirects
+                window.location.href = targetUrl;
+            }
+        });
+    };
+
+    if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', run);
+} else {
+    run();
+}
+})();

@@ -223,7 +223,7 @@
                 
                 // --- PATCH NAVIGATION.JS ---
                 navScript = navScript.replace(/await loadScript\(".*?firebase-auth-compat\.js"\);/g, '// Auth SDK Skipped by Local Client');
-                navScript = navScript.replace(/if\s*\(authCheckCompleted && !user && !isRedirecting\)/g, 'if (false) /* REDIRECT BLOCKED BY LOCAL CLIENT */');
+                navScript = navScript.replace(/if\s*\(authCheckCompleted && !user && !isRedirecting.*?\)/g, 'if (false) /* REDIRECT BLOCKED BY LOCAL CLIENT */');
                 navScript = navScript.replace(/["']\/images\//g, `"${CDN_BASE}images/`);
                 navScript = navScript.replace('initializeApp(pages, FIREBASE_CONFIG);', `
                     firebase.auth = () => window.mockAuth;

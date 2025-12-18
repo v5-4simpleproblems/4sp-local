@@ -297,7 +297,7 @@
     <script type="module" src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js"></script>
     <script type="module" src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js"></script>
 
-    <script type="module" src="../firebase-config.js"></script>
+    <script type="module" src="firebase-config.js"></script>
 
     <script type="module">
         // --- START COOKIE LOGIC ---
@@ -372,7 +372,7 @@
         import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
 
         // This line imports the configuration object exported from your file.
-        import { firebaseConfig } from '../firebase-config.js';
+        import { firebaseConfig } from './firebase-config.js';
 
         // 1. Initialize the Firebase App using the imported configuration.
         const app = initializeApp(firebaseConfig);
@@ -397,13 +397,13 @@
             if (user) {
                 // User is signed in. Change the button to "Go to dashboard".
                 if (authButton) {
-                    authButton.href = '../logged-in/dashboard.html';
+                    authButton.href = 'logged-in/dashboard.html';
                     authButton.innerHTML = DASHBOARD_HTML; // Use Font Awesome content
                 }
             } else {
                 // User is signed out. Ensure the button is set to "Get Started Instantly".
                 if (authButton) {
-                    authButton.href = '../authentication.html';
+                    authButton.href = 'authentication.html';
                     authButton.innerHTML = GET_STARTED_HTML; // Use Font Awesome content
                 }
             }

@@ -29,8 +29,12 @@ const FIREBASE_CONFIG = {
 // =========================================================================
 
 // --- Configuration ---
-const CDN_BASE_URL = 'https://cdn.jsdelivr.net/npm/4sp-local-client@latest/'; // This script's own base URL on the CDN
-const PAGE_CONFIG_URL = `${CDN_BASE_URL}page-identification.json`; // <--- NEW CONSTANT
+// This object defines the default "Dark" theme, containing only necessary properties for navigation-mini.js
+const DEFAULT_THEME = {
+    'avatar-gradient': 'linear-gradient(135deg, #374151 0%, #111827 100%)',
+};
+
+const PAGE_CONFIG_URL = 'page-identification.json'; // <--- FIXED PATH
 const PINNED_PAGE_KEY = 'navbar_pinnedPage';
 const PIN_BUTTON_HIDDEN_KEY = 'navbar_pinButtonHidden';
 const THEME_STORAGE_KEY = 'user-navbar-theme'; // Added for compatibility
@@ -143,7 +147,7 @@ const applyCounterZoom = () => {
             await loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js");
             
             // Load Ban Enforcer (Must be after Firebase)
-            await loadScript(`${CDN_BASE_URL}ban-enforcer.js`);
+            await loadScript("ban-enforcer.js");
 
             // Now that scripts are loaded, we can use the `firebase` global object
             initializeApp(); // No longer passing pages here as allPages is global
@@ -537,7 +541,7 @@ const applyCounterZoom = () => {
         const container = document.getElementById('navbar-container');
         if (!container) return; // Should not happen if setupContainer runs
 
-        const logoPath = `${CDN_BASE_URL}images/logo-christmas.png`; // Using root-relative path
+        const logoPath = "/images/logo-christmas.png"; // Using root-relative path
         const currentPagePath = window.location.pathname; // Get current path for conditional links
 
         // UPDATED: Use a function to render the conditional links
