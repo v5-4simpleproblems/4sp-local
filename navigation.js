@@ -258,13 +258,7 @@ let db;
         let pages = {};
         await loadCSS("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css");
         
-        try {
-            const response = await fetch(PAGE_CONFIG_URL);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            pages = await response.json();
-        } catch (error) {
-            console.error("Failed to load page identification config:", error);
-            pages = { 'home': { name: "Home", url: "../index.html", icon: "fa-solid fa-house" } };
+        pages = window.embeddedPageIdentification || {}; };
         }
 
         try {

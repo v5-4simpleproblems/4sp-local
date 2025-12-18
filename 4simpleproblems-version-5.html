@@ -1588,6 +1588,75 @@ let db;
                         window._USER_DOC_ID = "${currentUserDocId}";
                         window._USER_DATA = ${JSON.stringify(userData)};
                         window.FIREBASE_CONFIG = ${JSON.stringify(FIREBASE_CONFIG)};
+                        window.embeddedPageIdentification = {
+    "dashboard": {
+        "name": "Dashboard",
+        "icon": "fa-solid fa-house-user",
+        "url": "../logged-in/dashboard.html"
+    },
+    "soundboard": {
+        "name": "Soundboard",
+        "icon": "fa-solid fa-volume-up",
+        "url": "../logged-in/soundboard.html"
+    },
+    "notes": {
+        "name": "Notes",
+        "icon": "fa-solid fa-sticky-note",
+        "url": "../logged-in/notes.html"
+    },
+    "dailyphoto": {
+        "name": "Dailyphoto",
+        "icon": "fa-solid fa-image",
+        "url": "../logged-in/dailyphoto.html"
+    },
+    "countdowns": {
+        "name": "Countdowns",
+        "icon": "fa-solid fa-clock",
+        "url": "../logged-in/countdowns.html"
+    },
+    "weather": {
+        "name": "Weather",
+        "icon": "fa-solid fa-cloud-sun",
+        "url": "../logged-in/weather.html"
+    },
+    "dictionary": {
+        "name": "Dictionary",
+        "icon": "fa-solid fa-book",
+        "url": "../logged-in/dictionary.html"
+    },
+    "messenger-v2": {
+        "name": "Messenger",
+        "icon": "fa-solid fa-comments",
+        "url": "../logged-in/messenger-tutorial.html"
+    },
+    "games-4sp": {
+        "name": "Games",
+        "icon": "fa-solid fa-gamepad",
+        "url": "../GAMES/index.html"
+    },
+    "levium": {
+        "name": "Levium",
+        "icon": "fa-solid fa-globe",
+        "url": "../logged-in/levium.html",
+        "adminOnly": true
+    },
+    "securly-tester": {
+        "name": "Securly Tester",
+        "icon": "fa-solid fa-shield-alt",
+        "url": "../logged-in/securly-tester.html"
+    },
+    "settings": {
+        "name": "Settings",
+        "icon": "fa-solid fa-gear",
+        "url": "../logged-in/settings.html"
+    },
+    "analytics": {
+        "name": "Analytics",
+        "icon": "fa-solid fa-chart-line",
+        "url": "../logged-in/analytics.html",
+        "adminOnly": true
+    }
+};
                         
                         window.currentUser = {
                             uid: "${currentUserDocId}",
