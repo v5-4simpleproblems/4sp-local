@@ -258,8 +258,8 @@ let db;
         let pages = {};
         await loadCSS("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css");
         
-        pages = window.embeddedPageIdentification || {}; };
-        }
+        // ** MODIFIED: Use inline pages object
+        pages = window.embeddedPageIdentification || {};
 
         try {
             await loadScript("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js");
