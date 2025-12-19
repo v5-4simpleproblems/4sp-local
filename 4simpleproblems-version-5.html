@@ -215,6 +215,8 @@
         async function loadDashboard(userData) {
             const themesJsonUrl = CDN_BASE + 'themes.json';
             const dashboardUrl = CDN_BASE + 'logged-in/dashboard.html';
+            const navigationJsUrl = CDN_BASE + 'navigation.js';
+            const pageConfigUrl = CDN_BASE + 'page-identification.json';
             
             // --- DYNAMIC CONTENT LOADING ---
             let navScriptContent = '';
@@ -223,15 +225,12 @@
             let themes = {};
 
             try {
-                // Fetch resources. 
-                // We fetch navigation.js and page-identification.json from the repository (local) 
-                // to ensure the updated version is used, making it more dynamic and fixable via repo updates.
-                // dashboard.html and themes.json still come from the CDN as requested.
+                // Fetch resources from CDN as requested.
                 const [dashRes, themesRes, navRes, pageConfigRes] = await Promise.all([ 
                     fetch(dashboardUrl), 
                     fetch(themesJsonUrl),
-                    fetch('navigation.js'),
-                    fetch('page-identification.json')
+                    fetch(navigationJsUrl),
+                    fetch(pageConfigUrl)
                 ]);
 
                 if (!dashRes.ok) throw new Error('Failed to load dashboard.html');
