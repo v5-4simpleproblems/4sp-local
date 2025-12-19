@@ -1628,26 +1628,23 @@ let db;
                     });
                 `;
 
-                // 3. Write base HTML and then inject scripts via DOM manipulation for safety
+                // 3. Write base HTML and then inject scripts via string manipulation for atomic parsing
                 const doc = appFrame.contentWindow.document;
                 doc.open();
                 // Remove original script tags to prevent conflicts
                 html = html.replace(/<script\s+src=["']\.\.\/(navigation|injector)\.js["']><\/script>/g, '<!-- Script blocked by client -->');
-                doc.write(html);
+
+                // Construct base and script tags as strings (escaping </script> for safety)
+                const baseTagString = `<base href="${CDN_BASE}logged-in/">`;
+                const setupScriptTagString = `<script>${setupScriptText.replace(/<\/script>/g, '<\\/script>')}<\/script>`;
+                const navScriptTagString = `<script>${navScript.replace(/<\/script>/g, '<\\/script>')}<\/script>`;
+
+                // Inject into the HTML string before writing, using callbacks for replace to prevent special char interpretation
+                html = html.replace('<head>', () => `<head>${baseTagString}${setupScriptTagString}`);
+                html = html.replace('</body>', () => `${navScriptTagString}</body>`);
+
+                doc.write(html); // Write the fully constructed HTML
                 doc.close();
-
-                // Inject resources and scripts using robust DOM methods
-                const baseElement = doc.createElement('base');
-                baseElement.href = `${CDN_BASE}logged-in/`;
-                doc.head.prepend(baseElement);
-
-                const setupScriptEl = doc.createElement('script');
-                setupScriptEl.textContent = setupScriptText;
-                doc.head.appendChild(setupScriptEl);
-
-                const navScriptEl = doc.createElement('script');
-                navScriptEl.textContent = navScript;
-                doc.body.appendChild(navScriptEl);
 
             } catch (e) {
                 console.error("Load error:", e);
