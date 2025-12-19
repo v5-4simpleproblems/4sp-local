@@ -241,13 +241,19 @@
                 html = await dashRes.text();
                 themes = await themesRes.json();
                 navScriptContent = await navRes.text();
-                pageConfigContent = await pageConfigRes.text();
+                
+                // Parse and re-stringify to ensure valid JS syntax and avoid injection issues
+                const pageConfigObj = await pageConfigRes.json();
+                pageConfigContent = JSON.stringify(pageConfigObj);
                 
                 // Make themes available to the iframe
                 window.embeddedThemes = themes;
 
                 let navScript = navScriptContent;
                 // --- PATCH NAVIGATION.JS ---
+                // Escape potential script closings to prevent breaking the HTML parser
+                navScript = navScript.replace(/<\/script>/g, '<\\/script>');
+
                 navScript = navScript.replace(/await loadScript\(".*?firebase-auth-compat\.js"\);/g, '// Auth SDK Skipped by Local Client');
                 navScript = navScript.replace(/if\s*\(authCheckCompleted && !user && !isRedirecting.*?\)/g, 'if (false) /* REDIRECT BLOCKED BY LOCAL CLIENT */');
                 navScript = navScript.replace(/["']\/images\//g, `"${CDN_BASE}images/`);
