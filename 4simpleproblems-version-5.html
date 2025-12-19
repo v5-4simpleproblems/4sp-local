@@ -300,11 +300,19 @@
                 `;
 
                 const navScriptTag = `<script>${navScript}<\/script>`;
-                html = html.replace('window.location.replace(redirectPath);', 'console.log("Redirect blocked by local client");');
-                html = html.replace(/<script\s+src=["']\.\.\/injector\.js["']><\/script>/, '<!-- injector.js blocked by client -->');
-                html = html.replace(/<script\s+src=["']\.\.\/navigation\.js["']><\/script>/, navScriptTag);
-                if (!html.includes(navScriptTag)) html = html.replace('</body>', `${navScriptTag}</body>`);
-                html = html.replace('<head>', `<head>${baseTag}${setupScript}`);
+                
+                // Use callback function in replace to avoid special replacement patterns (like $&, $1) 
+                // mangling the injected script content which contains template literals.
+                html = html.replace('window.location.replace(redirectPath);', () => 'console.log("Redirect blocked by local client");');
+                html = html.replace(/<script\s+src=["']\.\.\/injector\.js["']><\/script>/, () => '<!-- injector.js blocked by client -->');
+                html = html.replace(/<script\s+src=["']\.\.\/navigation\.js["']><\/script>/, () => navScriptTag);
+                
+                // Ensure navScriptTag is appended if replacement didn't happen (fallback)
+                if (!html.includes(navScriptTag) && !html.includes('<!-- navigation.js injected -->')) {
+                     html = html.replace('</body>', () => `${navScriptTag}</body>`);
+                }
+
+                html = html.replace('<head>', () => `<head>${baseTag}${setupScript}`);
 
                 const doc = appFrame.contentWindow.document;
                 doc.open(); doc.write(html); doc.close();
